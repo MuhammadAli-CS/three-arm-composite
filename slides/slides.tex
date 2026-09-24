@@ -203,6 +203,75 @@ been here.
 \end{frame}
 
 % ------------------------------------------------------------------
+\begin{frame}{What the two factors actually compute}
+
+First, the notation. $\Norm(a;\,b,\,c)$ is not a distribution --- it is a
+\textbf{number}: the height of the bell curve with mean $b$ and variance $c$,
+read off at the position $a$. Three numbers in, one number out.
+
+\bigskip
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\textbf{Factor 1 --- does it match?}\\[4pt]
+Centre the bell on what the candidate \emph{predicts}, $g(h(x_i))$; read it off
+at what you \emph{measured}, $y_i$.\\[5pt]
+$\sigma$ is the tolerance, and it sits in the denominator of the exponent --- at
+$\sigma=0.01$, missing by $0.1$ costs $e^{-50}$.\\[5pt]
+$\textstyle\prod_i$ runs over evaluated points: once $\mathbf h$ is fixed, the
+measurements are independent.
+\end{column}
+\begin{column}{0.46\textwidth}
+\textbf{Factor 2 --- is it smooth?}\\[4pt]
+One multivariate Gaussian over the \emph{whole vector} of values, with
+$K_{ii'}=\exp(-\|x_i-x_{i'}\|^2/2\ell^2)$.\\[3pt]
+Three points at $x=(0,\,0.1,\,0.6)$, $\ell=0.5$:
+\[
+K=\begin{pmatrix}1 & 0.98 & 0.49\\ 0.98 & 1 & 0.61\\ 0.49 & 0.61 & 1\end{pmatrix}
+\]
+$K^{-1}$ in that exponent \textbf{is} the smoothness machinery.
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Evaluating it on three candidates}
+
+$g(z)=z^2$, $\sigma=0.01$, measured $\mathbf y=(4,\;4.2025,\;1)$.
+
+\medskip
+\begin{center}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Candidate & $\mathbf h$ & log-likelihood & log-prior & log-posterior \\
+\midrule
+\textbf{A} smooth, matches & $(2,\;2.05,\;1)$            & $+11.06$      & $-2.80$        & \good{$+8.26$} \\
+\textbf{B} jumpy, matches  & $(2,\;\mathbf{-2.05},\;1)$  & $+11.06$      & \bad{$-469.5$} & $-458.45$ \\
+\textbf{C} smooth, misses  & $(2,\;2.02,\;\mathbf{1.5})$ & \bad{$-7876$} & $-2.80$        & $-7878.8$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+\textbf{A and B have the \emph{identical} log-likelihood} --- not similar,
+identical, because $(-2.05)^2=(2.05)^2$. That factor is mathematically incapable
+of separating them. The prior does it alone: $\mathbf h^\top K^{-1}\mathbf h$ is
+$4.42$ for A and $937.8$ for B, because $K_{12}=0.98$ demands that the first two
+points agree.
+
+\medskip
+C inverts it --- a marginally \emph{better} prior than A, destroyed by predicting
+$2.25$ where you measured $1$.
+
+\bigskip
+\centering
+\emph{Each candidate is killed by a different factor. That is why the equation
+is a product.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
 \begin{frame}{The experiment}
 
 19 outer maps applied to inner functions \textbf{drawn from the same GP family
