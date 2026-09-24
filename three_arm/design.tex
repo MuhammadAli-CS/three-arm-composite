@@ -1,0 +1,943 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Xs}{\mathcal{X}}
+\newcommand{\GP}{\mathcal{GP}}
+\newcommand{\Norm}{\mathcal{N}}
+\newcommand{\Data}{\mathcal{D}}
+\newcommand{\Ulost}{U_{\text{lost}}}
+
+\title{Separating Two Things Composite Modeling Provides:\\
+Knowing the Outer Function from Observing the Intermediates}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Composite Bayesian optimization gives a surrogate two advantages at once: it is
+told the algebraic form of the outer function, and it gets to see the
+intermediate quantities that function consumes. Every comparison in our
+benchmark study changes both together, so none of them can say which advantage
+produced the gain. This note designs, implements and validates a third
+surrogate that receives exactly one of the two, which splits the composite gain
+into its two parts. Part~\ref{part:overview} is a short summary of the whole
+idea. The remaining parts give the full detail: the reasoning behind the
+decomposition, the synthetic problems, the inference procedure for the new
+surrogate and the three defects found in it, what is measured, and what has and
+has not been verified.
+\end{abstract}
+
+\tableofcontents
+
+% ======================================================================
+\part{Overview}
+\label{part:overview}
+% ======================================================================
+
+\section{The short version}
+
+\paragraph{The setting.} Many expensive objectives factor as $f(x)=g(h(x))$,
+where $h:\Xs\to\R^k$ is an expensive black box (a simulator, an experiment) and
+$g:\R^k\to\R$ is a known, cheap function written down by whoever posed the
+problem. A \emph{direct} surrogate fits a Gaussian process to $f$ and ignores
+the factorization. A \emph{composite} surrogate fits Gaussian processes to $h$
+and pushes their posterior samples through $g$. Our benchmark study found the
+composite surrogate better on most problems, by margins running from $121\%$
+down to nothing.
+
+\paragraph{The problem with that comparison.} Going from direct to composite
+changes two things simultaneously:
+\begin{enumerate}
+\item \textbf{knowledge of $g$} --- the surrogate is handed the outer function
+and never has to learn it from data;
+\item \textbf{observation of $h$} --- each expensive evaluation now returns $k$
+numbers instead of one.
+\end{enumerate}
+Both are bundled into every result we have. So when the composite surrogate
+wins by $121\%$ on DTLZ2 we cannot say which advantage did the work, and when it
+wins by nothing on RGB we cannot say which one failed.
+
+\paragraph{The fix.} Add a third surrogate that gets advantage (1) and not (2):
+it knows $g$ exactly, holds the same prior belief about $h$ that the composite
+surrogate holds, but only ever observes the scalar $y$. Call it the
+\emph{latent} arm, because $h$ is never seen and must be inferred. Then
+\begin{align}
+\text{latent} - \text{direct} &= \text{the value of knowing } g,\\
+\text{composite} - \text{latent} &= \text{the value of observing } h,
+\end{align}
+and the two sum exactly to the composite gain we already report.
+
+\paragraph{What governs the split.} Observing $h$ can only help to the extent
+that $y=g(h)$ fails to pin $h$ down. That makes invertibility of $g$ the
+controlling property, and it yields two extreme cases we can check against
+theory rather than intuition:
+\begin{itemize}
+\item \textbf{$g$ injective} $\Rightarrow$ $h=g^{-1}(y)$, so the latent and
+composite arms see identical information and are the same model. Observing $h$
+is worth \emph{exactly zero}.
+\item \textbf{$g$ linear} $\Rightarrow$ a linear combination of independent GPs
+is itself a GP, so the latent arm collapses into a direct GP on $y$. Knowing $g$
+is worth \emph{approximately zero}. (Truss and RCM40, our two weakest results,
+both have linear outer maps.)
+\end{itemize}
+Between those, the information $g$ destroys is the \emph{fiber} $g^{-1}(y)$: a
+pair of points for $z^2$, several for $\cos$, a half-line for a clipped map, a
+circle for a norm, a hyperbola for a product.
+
+\paragraph{The experiment.} Nineteen outer maps applied to intermediates drawn
+from the same GP family the surrogates assume, so the inner function is never a
+confound. Single objective, $d=6$, $5$ initial points plus $40$ adaptive
+evaluations, all three arms sharing the initial design and the acquisition
+function so the surrogate is the only difference. Four independent draws of the
+inner function, five initial designs each.
+
+\paragraph{The hard part.} Arms 1 and 2 have closed-form posteriors --- ordinary
+GP regression. The latent arm does not: it must infer quantities it never
+observed through a nonlinear $g$, which is Markov chain Monte Carlo rather than
+a formula. Every difficulty in this project has been there, and three genuine
+defects were found and fixed (Section~\ref{sec:defects}).
+
+\paragraph{Why we can believe the result.} Three of the nineteen conditions have
+answers known in advance --- the identity map, an injective map, and a linear
+map --- and are included solely so the machinery can be graded where grading is
+possible. That is what caught the defects: on the identity map ``observing $h$''
+must be exactly zero, and the code reported $+0.956$. After the fixes it
+reports $-0.096\pm0.175$, and the two other controls pass as well.
+
+\section{Reading guide}
+
+Part~\ref{part:idea} gives the argument in full, including the worked cases
+behind each prediction. Part~\ref{part:functions} specifies the synthetic
+problems and explains the two that had to be redesigned. Part~\ref{part:latent}
+is the inference procedure for the latent arm, the three defects and their
+fixes. Part~\ref{part:measure} defines every reported quantity, including the
+diagnostics. Part~\ref{part:protocol} is the protocol and the validation
+evidence. Part~\ref{part:limits} states the limitations. The appendix maps each
+piece of the design onto the code that implements it.
+
+% ======================================================================
+\part{The idea in detail}
+\label{part:idea}
+% ======================================================================
+
+\section{The composite setting}
+
+Fix a single objective $f(x)=g(h(x))$ on $\Xs=[0,1]^d$, with
+$h:\Xs\to\R^k$ unknown and $g:\R^k\to\R$ known in closed form. After $n$
+evaluations write $X=(x_1,\dots,x_n)$, $\mathbf{y}=(y_1,\dots,y_n)$ with
+$y_i=f(x_i)+\varepsilon_i$, and
+$\mathbf{h}(X)=(h(x_1),\dots,h(x_n))\in\R^{n\times k}$ for the matrix of
+intermediates.
+
+A surrogate's job at each iteration is to produce a predictive distribution over
+$f(x')$ at candidate points $x'$, which an acquisition function turns into the
+next evaluation. The three arms differ only in how that predictive is built.
+
+\section{The confound, stated precisely}
+
+Write $I_{\text{direct}}$, $I_{\text{comp}}$ for the information each surrogate
+conditions on:
+\begin{align}
+I_{\text{direct}} &= \bigl(\mathbf{y}\bigr), \quad g \text{ unknown},\\
+I_{\text{comp}}   &= \bigl(\mathbf{h}(X)\bigr), \quad g \text{ known}.
+\end{align}
+These differ in two coordinates at once. Any performance gap between them is a
+sum of two effects with no way to separate them from the two numbers alone. The
+latent arm supplies the missing corner of the $2\times2$ table:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & $g$ unknown & $g$ known \\
+\midrule
+observes $y$ only      & arm 1 (direct)  & arm 3 (latent) \\
+observes $h$           & --- (incoherent) & arm 2 (composite) \\
+\bottomrule
+\end{tabular}
+\end{center}
+The empty cell is incoherent: a surrogate that observes $h$ but does not know
+$g$ cannot predict $f$ at all. So three arms are the most that can be
+instantiated, and three is enough --- the two available differences are exactly
+the two effects, and they telescope.
+
+\section{The three arms}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Arm & Observes & Knows $g$ & Surrogate \\
+\midrule
+1. Direct    & $y_i=f(x_i)$ & no  & $f\sim\GP$ fit to $y$, hyperparameters by MLE \\
+2. Composite & $h(x_i)$     & yes & $h_j\sim\GP$ conditioned on observed $h_j$, then apply $g$ \\
+3. Latent    & $y_i=f(x_i)$ & yes & $h_j\sim\GP$ \emph{a priori}, $h$ inferred from $y$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{What the latent arm computes}
+
+Its posterior over the unobserved intermediates is Bayes' rule and nothing more:
+\begin{equation}
+p\bigl(\mathbf{h}(X)\mid \mathbf{y}\bigr)\;\propto\;
+\underbrace{\prod_{i=1}^{n}\Norm\!\bigl(y_i;\,g(h(x_i)),\,\sigma^2\bigr)}_{\text{likelihood: does this }h\text{ explain }y?}
+\;\cdot\;
+\underbrace{\prod_{j=1}^{k}\Norm\!\bigl(h_j(X);\,m_j,\,v_jK\bigr)}_{\text{GP prior: is this }h\text{ a plausible function?}} ,
+\label{eq:posterior}
+\end{equation}
+where $K_{ii'}=k_{\mathrm{RBF}}(x_i,x_{i'})$ and $(m_j,v_j)$ are the prior mean
+and variance of the $j$th intermediate.
+
+Prediction is then exact \emph{given} the latents, because
+$h(x')\mid\mathbf{h}(X)$ is an ordinary GP conditional. So the arm-3 predictive
+is a \textbf{mixture of Gaussian processes}, one component per posterior sample
+of $\mathbf{h}(X)$:
+\begin{equation}
+p\bigl(f(x')\mid\mathbf{y}\bigr)=\int p\bigl(g(h(x'))\mid \mathbf{h}(X)\bigr)\,
+p\bigl(\mathbf{h}(X)\mid\mathbf{y}\bigr)\,d\mathbf{h}(X)
+\;\approx\;\frac{1}{S}\sum_{s=1}^{S}p\bigl(g(h(x'))\mid\mathbf{h}^{(s)}\bigr).
+\end{equation}
+That mixture is the whole point. A direct GP on $y$ is a single Gaussian and
+cannot represent multimodality; if two very different intermediate functions
+both explain the data, the latent arm carries both hypotheses forward and its
+predictive is genuinely bimodal.
+
+\subsection{The prior, and what ``sharing'' it means}
+
+A GP prior here is three numbers per intermediate: a mean $m_j$, a variance
+$v_j$, and a lengthscale $\ell$ shared across coordinates. Everything else the
+GP does follows from those plus the data.
+
+Arms 2 and 3 are constructed from the \textbf{same} prior object --- same
+$(m_j,v_j,\ell)$, same conditioning code --- and it is not an estimate: it is
+the recipe the inner functions were actually generated from
+(Section~\ref{sec:draws}). The only difference between the two arms is therefore
+what gets conditioned on: arm 2 conditions on $\mathbf{h}(X)$ directly, arm 3
+must first infer it from $\mathbf{y}$. That is deliberate. Had arm 3 been given
+a different lengthscale or variance, the gap between arms 2 and 3 would blend
+``better prior'' with ``better observations'' and measure neither.
+
+Arm 1 cannot share it and does not: it models $y$, and for a general $g$ the
+function $g(h(\cdot))$ is not a GP, so there is no true prior to hand it. It
+estimates its own by maximum likelihood. Section~\ref{sec:hyperconfound} deals
+with the asymmetry this creates.
+
+\subsection{The accounting identity}
+
+With $R_a$ the performance of arm $a$ on a common metric,
+\begin{equation}
+\underbrace{(R_1-R_3)}_{\text{knowing }g}\;+\;\underbrace{(R_3-R_2)}_{\text{observing }h}
+\;=\;\underbrace{(R_1-R_2)}_{\text{composite gain we already report}} .
+\end{equation}
+The identity is trivially true, which is a feature: the right-hand side is a
+number we have already published for each benchmark, so the decomposition is
+guaranteed to add up and any failure to do so is a bug, not a finding.
+
+\section{Why the decomposition should be informative}
+
+\subsection{Invertible $g$: observing $h$ is worth nothing}
+
+If $g$ is injective and observations are noise-free, $h(x_i)=g^{-1}(y_i)$
+exactly. Arm 3 recovers the intermediates from the objective alone, so arms 2
+and 3 condition on identical information and are literally the same model. Any
+composite advantage on such a problem is attributable entirely to knowing $g$.
+
+The exponential warping family $g(z)=\exp(\beta z)$ is of this type. Knowing $g$
+is still worth something --- it tells the surrogate that $y>0$, and how the scale
+is warped --- but the extra numbers are redundant.
+
+Two of these maps are in the run specifically as a sanity check: if the code
+reports anything other than exactly zero for ``observing $h$'' on $\exp$ or
+$\sinh$, it is broken.
+
+\subsection{Linear $g$: knowing $g$ is worth nothing}
+
+If $g(\mathbf{y})=\sum_j c_jy_j$ and the $h_j$ are independent GPs, then
+$g(h(\cdot))$ is \emph{itself} a GP with mean $\sum_jc_jm_j$ and kernel
+$\bigl(\sum_jc_j^2v_j\bigr)k(\cdot,\cdot)$. Arm 3 therefore collapses to an
+ordinary GP fitted to $y$ --- which is arm 1 with a particular kernel. Up to
+hyperparameter estimation, knowing $g$ buys nothing.
+
+This is the sharpest prediction in the design, and it bears directly on the
+paper: Truss and RCM40 both have linear outer maps and both produced our weakest
+results. If the prediction holds, the explanation is not the vague ``linear maps
+are easy'' but something specific --- on a linear map there is no knowledge to
+exploit, so whatever gain the composite surrogate shows must come from the extra
+observations alone.
+
+\subsection{Non-invertible $g$: both channels are live}
+
+Take the smallest interesting case, $g(z)=z^2$, noise-free. Then $h(x)$ is known
+only up to sign:
+\begin{equation}
+p\bigl(h(x')\mid g(h(x))=y\bigr)
+=p\bigl(h(x')\;\bigm|\;h(x)\in\{+\sqrt{y},\,-\sqrt{y}\}\bigr),
+\label{eq:square}
+\end{equation}
+so the posterior is a two-component mixture after one observation, and a mixture
+over $2^n$ sign patterns after $n$, each pattern weighted by its plausibility
+under the GP prior. Crucially the weights are \emph{not} uniform: a pattern that
+requires the function to jump between $+\sqrt{y}$ and $-\sqrt{y}$ at two nearby
+inputs is heavily penalized by the prior, so the data do constrain the signs
+jointly even though each observation alone does not. Observing $h$ removes the
+ambiguity outright, which is what arm 2 measures.
+
+But knowing $g$ is worth something even with no observation of $h$ at all. The
+range of $g$ is $[0,\infty)$, so arm 3 assigns
+\begin{equation}
+P\bigl(f(x')=-1\mid\Data\bigr)=P\bigl(h(x')^2=-1\mid\Data\bigr)=0,
+\end{equation}
+whereas a direct GP on $y$ --- a Gaussian --- puts positive probability on values
+that can never occur. More generally, knowing $g$ imposes the support, the
+curvature, and any kinks or saturation of the outer map, none of which a
+stationary GP on $y$ can represent.
+
+In general the information destroyed by $g$ is the \emph{fiber} $g^{-1}(y)$: a
+finite set for $z^2$ or $\cos$, a half-line for a clipped or rectified map, a
+circle for a Euclidean norm, a hyperbola for a product. This is the structure
+the synthetic maps in Part~\ref{part:functions} are chosen to vary.
+
+\subsection{Predictions, stated before the run}
+
+\begin{center}
+\begin{tabular}{llcc}
+\toprule
+$g$ & Type & knowing $g$ & observing $h$ \\
+& & (arm 1 $-$ arm 3) & (arm 3 $-$ arm 2) \\
+\midrule
+$z$                               & identity       & $0$ & $0$ \\
+$\exp(\beta z)$, $\sinh(\beta z)$ & invertible     & $+$ & $0$ by construction \\
+$(z-c)^2$                         & lossy, tunable & $+$ & $+$ at $c=0$, $\to0$ as $c$ grows \\
+$|z|$                             & lossy          & $+$ & $+$ \\
+$y_1+y_2$                         & linear         & $\approx0$ & $+$ \\
+norm, max, product, ratio         & lossy          & $+$ & $+$ \\
+$-\max(z,0)$                      & censors away from optimum & $+$ & $\approx 0$ \\
+$\mathrm{clip}(2y_1,-1,1)+y_2$    & censors at the optimum & $+$ & $+$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The last two rows deserve emphasis because they are the design's one genuinely
+non-obvious prediction. Both maps destroy information by censoring, but
+$-\max(z,0)$ is optimized at the largest $h$, where $g$ is injective, so the
+destroyed information sits \emph{away from} the optimum; the clipped pair is
+constructed so the censored coordinate matters at the optimum. If observing $h$
+pays off on the second and not the first, then what matters is not how much
+information $g$ destroys but \emph{where}.
+
+% ======================================================================
+\part{The test functions}
+\label{part:functions}
+% ======================================================================
+
+\section{Design principle: the inner function must not be a confound}
+\label{sec:draws}
+
+If the inner functions were arbitrary analytic expressions, arms 2 and 3 might
+win or lose because a GP happens to model those expressions well or badly, and
+we would learn nothing about $g$. So every primitive $h_j$ is a fixed draw from
+the \emph{same} RBF-GP family the surrogates assume, generated with random
+Fourier features:
+\begin{equation}
+h(x)=\sqrt{\tfrac{2}{M}}\sum_{m=1}^{M}a_m\cos(\omega_m^\top x+b_m),
+\qquad a_m\sim\Norm(0,1),\;b_m\sim U(0,2\pi),\;\omega_m\sim\Norm(0,\ell^{-2}I),
+\end{equation}
+with $M=1024$ and $\ell=0.5$. As $M\to\infty$ this converges to a draw from
+$\GP(0,k_{\mathrm{RBF}})$; at $M=1024$ it is close enough that the prior handed
+to arms 2 and 3 is correct rather than approximately correct.
+
+The draw is standardized on a fixed Sobol reference set, so the prior on the
+standardized function is $\GP(-\mu/s,\,k_{\mathrm{RBF}}/s^2)$ with $\mu,s$ the
+measured mean and standard deviation. Those two constants are exactly what arms
+2 and 3 receive as $(m_j,v_j)$. The same draw is reused across every outer map,
+so switching $g$ never changes the underlying function.
+
+\paragraph{Why standardizing matters beyond scale.} It puts the draw's mean at
+zero, so $h$ takes \emph{both signs} over the domain. Without that, $z^2$ would
+be injective on the region actually visited and would destroy nothing --- the
+sweep's whole knob would be dead.
+
+\paragraph{Objective normalization.} Each final objective is mapped to roughly
+$[0,1]$ using the $1$st and $99$th percentiles of $g(h(\cdot))$ on a fixed
+reference set, so outer maps do not differ merely in scale. The transform is
+affine and known, so it is folded into $g$ for all three arms and changes
+nothing about who knows what.
+
+\section{Function draws versus seeds}
+\label{sec:seeds}
+
+Two independent sources of randomness must be varied, and they are not
+interchangeable.
+
+\begin{description}
+\item[The initial design.] Which $5$ Sobol points start the run. All three arms
+share it within a seed, which is what makes the comparison paired.
+\item[The function draw.] Which random $h$ was drawn in the first place.
+\end{description}
+
+Only the first was varied in the initial version of this study: the
+function-draw seed was fixed, so twenty ``seeds'' meant twenty initial designs
+on \emph{one} sampled function, and the reported standard errors described
+variation in the starting points only. A conclusion could have been a property
+of that one draw with no way to tell from the numbers. The run now sweeps four
+draws with five designs each --- identical total compute --- and the collection
+step pools them, so the error bars cover both sources.
+
+\section{The maps}
+
+Nineteen conditions in four groups.
+
+\paragraph{Controls (3).} $g(z)=z$; $g(\mathbf{y})=y_1+y_2$; $g(z)=\exp(z)$.
+Identity checks the machinery end to end (both effects are zero). The linear map
+checks the sampler against an exactly computable posterior. The injective map
+checks that ``observing $h$'' comes out at zero when theory says it must.
+
+\paragraph{The sweep (5).} $g_c(z)=(z-c)^2$ for $c\in\{0,0.5,1,2,3\}$ holds the
+functional form fixed and varies only how much ambiguity there is. At $c=0$ the
+sign of $h$ is lost wherever the draw crosses zero; at $c=3$ the shifted argument
+almost never changes sign over the domain, so $g$ is effectively injective. This
+is the cleanest available knob on ``how much $g$ discards,'' and the central plot
+of the study is the ``observing $h$'' gain against the measured $\Ulost$ along
+it.
+
+\paragraph{Matched pairs (9).} Each pair changes one property and holds the rest:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Pair & Shared & Isolates \\
+\midrule
+$z^2$ vs.\ $|z|$ & both two-to-one & smoothness at the optimum \\
+$\exp(\beta z)$ vs.\ $\sinh(\beta z)$ & both injective, both smooth & whether a range constraint helps \\
+$\cos(\omega z)$, $\omega\in\{1,2,4\}$ & smooth, periodic & \emph{how many} preimages \\
+$-\max(z,0)$ vs.\ clipped pair & both censor & \emph{where} the censoring bites \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Benchmark analogs (5).} Two intermediates into one objective, each
+mirroring a real benchmark: $y_1+y_2$ (Truss, RCM40), $y_1y_2$ (DTLZ2),
+$\sqrt{y_1^2+y_2^2}$ (Color), $\max(y_1,y_2)$ (Lake), and
+$u_1/(0.05+u_1+\lambda u_2)$ with $u=\mathrm{sigmoid}(y)$ (RGB). These let the
+synthetic conclusions be carried back to the benchmark results.
+
+\section{Two maps that had to be redesigned}
+\label{sec:degenerate}
+
+The first version of the censoring pair was degenerate, and the failure is
+instructive.
+
+\paragraph{The symptom.} On $g(z)=\max(z,0)$ and
+$g(z)=\mathrm{clip}(cz,-1,1)$, all three arms reported a final $\log_{10}$
+regret of exactly $-8.000$, which is the clamp floor in the metric --- i.e.\ zero
+regret for every arm on every seed.
+
+\paragraph{The cause.} Both maps are minimized on a flat region of positive
+measure. A bare $\max(z,0)$ takes its minimum value $0$ on the entire censored
+half $\{h\le0\}$, and a bare clip takes its minimum on the whole lower
+saturation region. The five-point Sobol initial design already contains such a
+point with high probability, so every arm starts at the optimum and the
+condition carries no signal about anything.
+
+\paragraph{The fix.} Both are now minimized at a unique point while censoring the
+same set:
+\begin{align}
+g(z)&=-\max(z,0) && \text{optimum at }\max h\text{, unique; censors }\{h\le0\}\\
+g(\mathbf{y})&=\mathrm{clip}(2y_1,-1,1)+y_2 && \text{optimum is a genuine tradeoff}
+\end{align}
+The negation puts the optimum where $g$ is injective, which is what turns this
+pair into the ``where does the censoring bite'' contrast of the previous section.
+The clipped version adds a second, uncensored intermediate so the objective is
+not flat, while the first coordinate stays censored inside saturation.
+
+\paragraph{Verification.} The median final regret of a five-point Sobol design
+alone rose from $0$ to $1.02$ for the rectified map and $0.62$ for the clipped
+pair, i.e.\ there is now something to optimize. A four-seed pilot separated the
+arms as predicted: $\Ulost=0.088$ with ``observing $h$'' at $-0.045\pm0.194$ for
+the rectified map, against $\Ulost=0.459$ and $+2.811\pm1.295$ for the clipped
+pair.
+
+% ======================================================================
+\part{Inference for the latent arm}
+\label{part:latent}
+% ======================================================================
+
+\section{Why this needs a sampler at all}
+
+Arms 1 and 2 are ordinary GP regression: the posterior is Gaussian and available
+in closed form. Arm 3 is not, and the reason is structural rather than technical.
+Its likelihood in \eqref{eq:posterior} depends on the latent $\mathbf{h}(X)$
+through $g$, which is nonlinear; a Gaussian prior times a non-Gaussian
+likelihood is not Gaussian, so there is no formula. Asking ``what would knowing
+$g$ alone be worth?'' necessarily means asking a surrogate to reason about
+quantities it never observed, and that is an inference problem the other two arms
+simply do not have.
+
+The state being sampled is small --- $n\times k$ numbers, at most $45\times2=90$
+at our budget --- but it is awkward: the posterior is multimodal by construction
+(that is the phenomenon under study), the likelihood is sharply peaked when
+$\sigma$ is small, and several of the maps have kinks or flat regions so
+gradients are unavailable or uninformative.
+
+\section{Closed forms where they exist}
+
+\begin{description}
+\item[Identity and injective maps.] $h=g^{-1}(y)$ exactly, so arm 3 is
+implemented as arm 2. This is a shortcut, not a different model.
+\item[Linear maps.] The posterior \eqref{eq:posterior} is Gaussian and available
+analytically; arm 3 samples it directly.
+\end{description}
+Both shortcuts can be disabled with a flag so the general sampler runs on those
+maps too, which is how they are validated (Section~\ref{sec:validation}).
+
+\section{The general sampler}
+
+Two move types alternate.
+
+\subsection{Elliptical slice sampling}
+
+Elliptical slice sampling \cite{murray2010} is the standard sampler for a GP
+prior with an arbitrary likelihood. Given the current state $\mathbf{h}$ it draws
+$\boldsymbol{\nu}$ from the prior, proposes
+\begin{equation}
+\mathbf{h}(\theta)=\mathbf{h}\cos\theta+\boldsymbol{\nu}\sin\theta,
+\end{equation}
+and shrinks the bracket on $\theta$ until the likelihood threshold is met. The
+ellipse is constructed so that every point on it has the same prior density,
+which is why no acceptance ratio is needed. It requires no gradients ---
+essential, because $|z|$, $\max$ and the clipped map are non-differentiable ---
+and no step size to tune.
+
+\subsection{Level-set moves, and why they are necessary}
+
+Elliptical slice sampling alone is not enough. When $\sigma$ is small the
+likelihood is sharply peaked on the constraint set
+$\{\mathbf{h}: g(h(x_i))=y_i\ \forall i\}$, so a proposal must shrink to
+$\theta\sim\sigma/\mathrm{sd}(h)$ to remain inside it. Movement \emph{along} the
+constraint set is then a very slow random walk --- and that set is precisely the
+ambiguity the experiment is about. A sampler that cannot traverse it will
+confidently report one branch and miss the multimodality entirely.
+
+Those directions are known in closed form for each $g$. We therefore propose
+$h(x_i)\mapsto h'(x_i)$ with
+\begin{equation}
+g\bigl(h'(x_i)\bigr)=g\bigl(h(x_i)\bigr)\quad\text{exactly},
+\end{equation}
+from a symmetric proposal density. The likelihood ratio is then identically one
+and the Metropolis--Hastings acceptance probability reduces to the GP prior ratio
+alone. With $Q=K^{-1}$ and $r_j=h_j(X)-m_j$, changing coordinate $i$ of latent
+$j$ from $\alpha$ to $\beta$ gives
+\begin{equation}
+\Delta\log p=-\frac{1}{2v_j}\Bigl[Q_{ii}\bigl(\beta^2-\alpha^2\bigr)
++2(\beta-\alpha)\bigl((Qr_j)_i-Q_{ii}\alpha\bigr)\Bigr],
+\label{eq:priorratio}
+\end{equation}
+which is $O(n)$ per single-site move given $Qr_j$. Sites are visited in random
+scan order.
+
+The moves are the symmetries of each map:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Map & Level-set move \\
+\midrule
+$(z-c)^2$, $|z|$        & reflection $h\mapsto 2c-h$ \\
+$\cos(\omega z)$        & reflection through the nearest multiple of $\pi/\omega$; period shift \\
+$-\max(z,0)$            & random walk confined to the censored region \\
+clipped pair            & random walk on the clipped coordinate within one saturation region \\
+$\sqrt{y_1^2+y_2^2}$    & rotation of $(h_1,h_2)$ \\
+$y_1y_2$                & negation of both; reciprocal rescaling $(ch_1,h_2/c)$ \\
+$\max(y_1,y_2)$         & coordinate swap; move the smaller coordinate \\
+$y_1+y_2$               & shift $(h_1+\delta,h_2-\delta)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Only the ratio map has no convenient exact symmetry and relies on elliptical
+slice sampling alone --- noted as a limitation in Part~\ref{part:limits}.
+
+\section{Three defects, and what they teach}
+\label{sec:defects}
+
+The first full run produced a table that looked entirely reasonable: smooth
+trends across the sweep, sensible signs everywhere, tight standard errors. It
+was wrong. The identity control read ``observing $h$'' $=+0.956\pm0.274$ where
+the true value is exactly $0$ by construction. Three separate defects
+contributed.
+
+\subsection{Defect 1: collapsed Monte Carlo pairing}
+
+The predictive samples were formed by giving every latent sample a
+\emph{shared} noise draw. When the latent posterior is tight, samples then
+differ only through their nearly identical posterior means, so the effective
+sample size collapses to one. Fixed by drawing $n$ independent noise vectors and
+pairing each with a latent sample cycled from the chain, matching the composite
+arm's sample count so the two are comparable. This was a real bug but not the
+main one: the identity control barely moved.
+
+\subsection{Defect 2: a false lead}
+
+The next hypothesis was that $\sigma$ was acting as a resolution floor. It was
+tested directly at $\sigma\in\{10^{-2},10^{-3},10^{-4}\}$, which gave
+$+1.036$, $+0.883$, $+1.156$ --- no trend --- and $\Ulost$ moved only from
+$0.0026$ to $0.0006$ when it should scale as $\sigma^2$. That non-scaling was
+itself the clue: something other than the likelihood was setting the spread.
+
+\subsection{Defect 3: latents never reaching the constraint surface}
+
+Two compounding mistakes in the warm-start path.
+
+\begin{enumerate}
+\item Burn-in anneals $\sigma$ downward so a chain started from the prior can
+find the data. That annealing was also being applied on warm starts, re-heating
+latents that were already correct; the short warm burn-in could not recover them.
+\item A newly appended BO point was initialized at its GP conditional mean,
+which is \textbf{not} on the surface $\{g(h)=y\}$. As established above,
+elliptical slice sampling cannot travel to that surface once the likelihood is
+tight --- its steps are $O(\sigma/\mathrm{sd}(h))$.
+\end{enumerate}
+
+So each BO iteration appended a point that stayed off the surface, and the error
+accumulated. Measured constraint residual across successive iterations of one
+run:
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+BO iteration & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+mean $\|g(h)-y\|$ & $0.00013$ & $0.00435$ & $0.02666$ & $0.01903$ & $0.04255$ & $0.12144$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The fix is in two parts: do not anneal on a warm start, and \emph{project} new
+rows onto the constraint surface before sampling, by local gradient descent on
+$\|g(h)-y\|^2$ started from the GP conditional mean. Descent lands on the
+preimage nearest that mean, which keeps whichever branch the prior prefers; the
+level-set moves then explore the others. Projection is used only to initialize,
+so it biases nothing --- the stationary distribution is still
+\eqref{eq:posterior}.
+
+After the fix the identity control reads $-0.096\pm0.175$, $\Ulost=0$ exactly,
+and the residual is stable at $\approx0.0015$ across iterations.
+
+\subsection{Why this matters methodologically}
+
+None of the three defects was visible in the results. Each produced plausible
+numbers with plausible error bars, and the trends across the sweep were in the
+predicted direction throughout. What exposed them was a condition whose answer
+was known before the run. A study containing only the interesting maps would have
+produced a confident, wrong table --- and the wrongness pointed in the direction
+of the hypothesis, which is the worst case.
+
+The practical rule the design now follows: every arm is graded on at least one
+condition where the correct answer is available independently of the code being
+graded.
+
+% ======================================================================
+\part{What is measured}
+\label{part:measure}
+% ======================================================================
+
+\section{Information destroyed by $g$}
+
+\begin{equation}
+\Ulost=\frac{1}{nk}\sum_{i=1}^{n}\sum_{j=1}^{k}
+\operatorname{Var}\bigl(h_j(x_i)\mid \mathbf{y}\bigr).
+\end{equation}
+This is the posterior variance of the intermediates \emph{at the points already
+evaluated} --- not at new points, where uncertainty would reflect ordinary GP
+extrapolation rather than anything about $g$. It is zero when $g$ is injective
+and noise-free, and grows with the size of the fiber. It is the measured version
+of the quantity the whole design is organized around, and it is what the
+``observing $h$'' gain is plotted against.
+
+\section{Optimization performance}
+
+Each arm reports simple regret against a reference minimum $f^\star$; the
+headline number is the final
+\begin{equation}
+\log_{10}\bigl(\max(f_{\text{best}}-f^\star,\,10^{-8})\bigr).
+\end{equation}
+The log is used because regret spans orders of magnitude across maps, and the
+clamp keeps a run that finds the optimum exactly from producing $-\infty$. It
+also means a reported $-8.000$ is a saturated value, which is how the degenerate
+maps of Section~\ref{sec:degenerate} were spotted.
+
+Comparisons are paired: all three arms share an initial design within a seed, so
+the reported difference is the mean of the per-seed differences and its standard
+error is
+\begin{equation}
+\mathrm{SE}=\sqrt{\frac{1}{S(S-1)}\sum_{s=1}^{S}\bigl(d_s-\bar d\bigr)^2},
+\qquad d_s=R_a^{(s)}-R_b^{(s)} .
+\end{equation}
+Pairing matters a great deal here: the variation between initial designs is
+larger than the effects being measured, and differencing within a seed removes
+it.
+
+\section{Sampler diagnostics, and what each one means}
+
+Three numbers are reported per condition. They answer different questions and
+the third is the one to trust.
+
+\begin{description}
+\item[$\hat R$ (Gelman--Rubin).] Several chains are started independently;
+$\hat R$ compares between-chain spread to within-chain spread, and equals $1$
+when they are indistinguishable. The conventional threshold is $1.1$. It is
+\textbf{unreliable here} whenever the posterior is nearly a point, because it
+divides by within-chain variance --- which is exactly the injective and
+large-$c$ cases.
+
+\item[Chain disagreement.] The largest gap between any two chains' predicted
+objective value at held-out points, in normalized objective units where the
+range is about $1$. This is reported because it is the quantity BO actually
+cares about, and because it stays meaningful when $\hat R$ does not. Under
+$\approx0.02$ is comfortable.
+
+\item[Move acceptance.] The fraction of proposed level-set moves accepted. Near
+zero means the sampler is confined to one branch --- which is a \emph{failure} if
+other branches are plausible and \emph{correct} if they are not. It should
+therefore track $\Ulost$, and on the sweep it does: both fall to zero together.
+\end{description}
+
+Critically, all diagnostics are computed on the predictive of $f$, not on
+$\mathbf{h}$ itself. Under an even $g$ a chain that has globally flipped the sign
+of $h$ represents the identical function; measuring on $h$ would register that as
+catastrophic non-convergence when nothing is wrong.
+
+\section{A confound that is not yet resolved}
+\label{sec:hyperconfound}
+
+Arms 2 and 3 are given the generator's true kernel. Arm 1 must estimate its
+hyperparameters by maximum likelihood, because for a general $g$ there is no
+true kernel for $f$. The ``knowing $g$'' comparison therefore mixes the value of
+knowing $g$ with the value of having a correct prior instead of one fitted to
+between $5$ and $45$ points.
+
+The identity map measures the second effect \emph{alone}, since knowing $g$ is
+worth exactly nothing there. In the pre-fix run it read $+0.628\pm0.260$ --- the
+same order of magnitude as most of the real effects, so this is not a minor
+correction. Two ways to handle it:
+\begin{enumerate}
+\item \textbf{Subtract the baseline}, assuming the hyperparameter advantage is
+roughly constant across maps. Cheap, and available from the current run, but the
+assumption is unverified.
+\item \textbf{Re-run with maximum-likelihood hyperparameters in all three
+arms}, which removes the asymmetry rather than correcting for it. This is the
+honest version and is the main outstanding piece of work.
+\end{enumerate}
+Until (2) is done, ``knowing $g$'' should be read as an upper bound.
+
+% ======================================================================
+\part{Protocol and validation}
+\label{part:protocol}
+% ======================================================================
+
+\section{Protocol}
+
+Single objective on $[0,1]^6$ with $\ell=0.5$; $n_0=5$ Sobol points and $40$
+adaptive evaluations, matching Experiment~1 of the benchmark study; four
+function draws $\times$ five initial designs per condition, pooled. All three
+arms share the initial design, the acquisition function, the candidate pool and
+the budget, so the surrogate is the only thing that differs.
+
+The acquisition is Monte Carlo LogEI in a numerically stable form,
+\begin{equation}
+\log\mathrm{EI}(x')\approx\log\!\Bigl[\tfrac{1}{N}\sum_{s}\tau\,
+\mathrm{softplus}\bigl((f_{\text{best}}-f_s(x'))/\tau\bigr)\Bigr],
+\end{equation}
+evaluated by \texttt{logsumexp} over $N=256$ samples with $\tau=10^{-3}$, on a
+$2048$-point Sobol pool with local refinement of the best four candidates. The
+softplus smoothing matters for arm 3 specifically: with a mixture predictive the
+hard hinge $\max(0,\cdot)$ makes the acquisition surface non-smooth in a way that
+interacts badly with local refinement.
+
+Runtime: about $2.5$ minutes per (map, draw) single-threaded, so the full
+$19\times4$ grid is roughly $20$--$30$ minutes on $16$ workers. Single-threaded
+is deliberate --- the matrices are at most $45\times45$ and BLAS threading
+measurably does not help at that size, so many one-thread jobs beat few
+many-thread ones.
+
+\section{Validation}
+\label{sec:validation}
+
+Three checks, each on a condition whose answer is available independently. They
+are the reason the defects of Section~\ref{sec:defects} were caught, and they are
+run before every experiment.
+
+\subsection{Check 1: against an exactly computable posterior}
+
+On the linear map with $n=20$ and the shortcut disabled, the posterior is
+Gaussian in closed form, so the sampler can be graded directly.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Quantity & Measured & Reading \\
+\midrule
+$|$mean $-$ exact mean$|$ / exact sd & median $0.069$, max $0.364$ & off by $7\%$ of a posterior sd \\
+sampled sd / exact sd & median $0.968$, range $[0.84,1.09]$ & $3\%$ too narrow on average \\
+move acceptance & $0.79$ & branches are being explored \\
+$\hat R$ / chain disagreement & $1.150$ / $0.0085$ & chains agree to $0.85\%$ of the range \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The second row is the one that matters most: too-narrow posteriors make the
+surrogate overconfident, which stops it exploring. $\hat R$ exceeds $1.1$ here,
+which is the case discussed above where it is not informative --- the
+disagreement figure is the reliable one.
+
+\subsection{Check 2: calibration against known truth}
+
+On $\exp(z)$ with the shortcut disabled, the true $h$ is recoverable, so we can
+ask whether the sampler's error bars contain it. If calibrated,
+$z=|$posterior mean $-$ true $h|/$posterior sd behaves like $|\Norm(0,1)|$:
+median $\approx0.67$, about $95\%$ below $2$.
+
+Measured: median $0.19$, max $1.10$, $\mathbf{100\%}$ within two standard
+deviations. The posteriors are therefore somewhat \emph{wider} than necessary,
+which is the safe direction. Before the fixes this read $95\%$ with a largest raw
+error of $0.620$; it is now $100\%$ with $0.386$.
+
+The largest remaining error sits at $h=-1.96$, where $\exp(h)\approx0.14$ and the
+slope of $g$ falls below the noise level $\sigma=10^{-2}$. This is correct
+behavior and a substantive caveat: \textbf{with observation noise, an injective
+$g$ still destroys information wherever it is flat}, so ``arm 2 equals arm 3 for
+injective $g$'' holds exactly only in the noise-free limit. The same map reports
+$\Ulost=2.4\times10^{-2}$ for this reason, rather than $0$.
+
+\subsection{Check 3: does the designed knob actually turn?}
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Map & $\Ulost$ & $\hat R$ & Chain disagreement & Move acceptance \\
+\midrule
+$(z-0)^2$   & $0.8703$ & $1.013$ & $0.0272$ & $0.68$ \\
+$(z-0.5)^2$ & $1.0789$ & $1.014$ & $0.0331$ & $0.54$ \\
+$(z-1)^2$   & $0.5154$ & $1.129$ & $0.0356$ & $0.32$ \\
+$(z-2)^2$   & $0.1075$ & $1.090$ & $0.0261$ & $0.07$ \\
+$(z-3)^2$   & $0.0038$ & $1.226$ & $0.0135$ & $0.00$ \\
+$|z|$       & $0.8812$ & $1.009$ & $0.0356$ & $0.66$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Information destroyed falls by more than two orders of magnitude across the
+sweep, and move acceptance falls with it: by $c=3$ the reflected proposal is so
+implausible under the prior that it is never accepted, which is the correct
+behavior when no ambiguity remains. Two independent measurements of the same
+collapse.
+
+\paragraph{One blemish, recorded honestly.} $c=0.5$ reads \emph{higher} than
+$c=0$ ($1.079$ vs.\ $0.870$), so $\Ulost$ is not monotone along the sweep. The
+automated check only tests the endpoints, so it passes. The likely explanation is
+that at $c=0.5$ both preimages are still live but now asymmetric, giving a wide
+lopsided two-bump posterior whose variance genuinely exceeds that of the
+symmetric case; variance is not a monotone function of ``how much ambiguity''
+when the modes are unequally weighted. Whether it survives pooling over function
+draws is an open question, and if it does, $\Ulost$ should be supplemented by a
+mode-count or entropy measure.
+
+\paragraph{Chain disagreement on the sweep.} It reads $0.026$--$0.036$, above the
+$0.02$ guideline, on exactly the maps whose posteriors are genuinely multimodal.
+This is not a defect --- it is real posterior mass being reported --- but it means
+the sweep's numbers carry extra Monte Carlo noise on top of the seed variation.
+Pooling over function draws mitigates it, since draws average over which modes
+happen to matter.
+
+\section{Results}
+
+The main grid is pending at the time of writing; it is produced by
+\texttt{run.py --collect}, which pools the function draws and recomputes the
+paired statistics over the pooled (draw, seed) pairs. The quantities to read off
+it are: ``observing $h$'' against $\Ulost$ along the sweep; ``knowing $g$'' on
+the linear map (predicted $\approx0$); ``observing $h$'' on the injective maps
+(predicted exactly $0$); the rectified-versus-clipped contrast; and the analogs
+against the corresponding benchmark results.
+
+% ======================================================================
+\part{Limitations}
+\label{part:limits}
+% ======================================================================
+
+\begin{itemize}
+\item \textbf{The hyperparameter asymmetry is not yet removed}, only measurable.
+See Section~\ref{sec:hyperconfound}. ``Knowing $g$'' is an upper bound until the
+all-MLE run is done.
+
+\item \textbf{Noise makes injectivity a matter of degree.} As measured in
+Check~2, an injective $g$ still loses information where its slope is small
+relative to $\sigma$. The clean statement holds only in the noise-free limit.
+
+\item \textbf{Continuous fibers mix more slowly than discrete ones.} Reflections
+for $z^2$ are single moves that jump between modes; following the circle fiber
+of a norm is a single-site random walk over a smooth field, which mixes more
+slowly when observed points are strongly coupled. The ratio map has no exact
+moves at all and relies on elliptical slice sampling alone, so it is the least
+trustworthy condition in the set.
+
+\item \textbf{$\Ulost$ is a variance, not an information measure.} The
+non-monotonicity at $c=0.5$ shows the two can come apart when posterior modes are
+unequally weighted.
+
+\item \textbf{Nothing here has $k>2$.} The real benchmarks have four to eight
+intermediates. Whether the latent arm's advantage scales with the number of
+hidden dimensions is untested, and it is also where the sampler would be least
+reliable, so this is a deliberate omission rather than an oversight.
+
+\item \textbf{The reference minimum is estimated}, from a large Sobol set refined
+by gradient ascent, so regret is measured against a very good estimate rather
+than a proven optimum.
+
+\item \textbf{Single objective.} The decomposition is cleanest with one
+objective; whether the same accounting holds once a hypervolume acquisition is
+involved is a separate question, and the natural next step once these results are
+in.
+\end{itemize}
+
+\appendix
+\section{Where each piece lives in the code}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Design element & File & Object \\
+\midrule
+Random Fourier feature draws, standardization & \texttt{test\_functions.py} & \texttt{RFFDraw} \\
+The nineteen outer maps & \texttt{test\_functions.py} & \texttt{OUTER\_MAPS} \\
+Level-set moves per map & \texttt{test\_functions.py} & \texttt{OuterMap.moves} \\
+Named groups for submission & \texttt{test\_functions.py} & \texttt{GROUPS} \\
+Shared prior for arms 2 and 3 & \texttt{arms.py} & \texttt{KnownPrior} \\
+Arm 1 & \texttt{arms.py} & \texttt{DirectArm} \\
+Arm 2 & \texttt{arms.py} & \texttt{CompositeArm} \\
+Arm 3, sampler and shortcuts & \texttt{arms.py} & \texttt{LatentArm} \\
+Elliptical slice step & \texttt{arms.py} & \texttt{LatentArm.\_ess\_step} \\
+Level-set Metropolis moves, Eq.~\eqref{eq:priorratio} & \texttt{arms.py} & \texttt{LatentArm.\_level\_set\_moves} \\
+Projection onto $\{g(h)=y\}$ & \texttt{arms.py} & \texttt{LatentArm.\_project} \\
+Exact Gaussian posterior for linear $g$ & \texttt{arms.py} & \texttt{exact\_linear\_posterior} \\
+Acquisition & \texttt{run.py} & \texttt{log\_ei}, \texttt{optimize\_acq} \\
+Paired differences and standard errors & \texttt{run.py} & \texttt{paired} \\
+The three validation checks & \texttt{run.py} & \texttt{run\_checks} \\
+Convergence diagnostics & \texttt{run.py} & \texttt{\_mixing} \\
+Pooling over function draws & \texttt{run.py} & \texttt{main}, \texttt{--collect} \\
+Cluster submission & \texttt{cluster/} & \texttt{three\_arm.sub}, \texttt{submit\_three\_arm.sh} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{thebibliography}{9}
+\bibitem{murray2010}
+I.~Murray, R.~P. Adams, and D.~J.~C. MacKay.
+Elliptical slice sampling.
+In \emph{Proceedings of the 13th International Conference on Artificial
+Intelligence and Statistics}, PMLR 9:541--548, 2010.
+\end{thebibliography}
+
+\end{document}

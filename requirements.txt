@@ -1,0 +1,4 @@
+# Pinned to what the stored results were produced with.
+torch==2.12.0
+botorch==0.9.5
+gpytorch==1.11

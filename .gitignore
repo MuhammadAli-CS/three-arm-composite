@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+# LaTeX build artifacts (design.pdf is committed deliberately)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+# Scratch result directories
+results/scratch*/

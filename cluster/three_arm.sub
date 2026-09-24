@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Generic SLURM job: runs one outer map (all seeds, all arms) from
+# three_arm/run.py.  Submit with --export to fill in MAP, e.g.:
+#
+#   sbatch --export=MAP=shiftsq_c0,SEEDS=10,BUDGET=40 cluster/three_arm.sub
+#
+# Normally you want cluster/submit_three_arm.sh, which submits a whole group.
+#
+# Resources differ deliberately from run_experiment.sub: these runs are pure
+# CPU on matrices of at most 45x45, so a GPU buys nothing and only lengthens
+# the queue wait.  BLAS threading measurably does not help at this size
+# either -- one thread per job, many jobs, is the fastest configuration.
+#SBATCH --job-name=three-arm
+#SBATCH --output=cluster/logs/%x_%j.out
+#SBATCH --error=cluster/logs/%x_%j.err
+#SBATCH --partition=aimi
+#SBATCH --account=kilian
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4g
+#SBATCH --time=02:00:00
+
+set -euo pipefail
+
+if [ -z "${MAP:-}" ]; then
+  echo "MAP must be set via --export. See cluster/submit_three_arm.sh." >&2
+  exit 1
+fi
+SEEDS="${SEEDS:-10}"
+BUDGET="${BUDGET:-40}"
+ENV_PATH="${ENV_PATH:-$HOME/morbo-env}"
+OUT="${OUT:-three_arm/results}"
+DRAW="${DRAW:-0}"    # which random function h to draw
+EXTRA="${EXTRA:-}"   # extra run.py flags, e.g. EXTRA=--no-shortcuts
+
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p cluster/logs "$OUT"
+
+# See cluster/setup_env.sh for why this sources conda's profile script
+# directly rather than ~/.bashrc.
+source /share/apps/software/anaconda3/etc/profile.d/conda.sh
+conda activate "$ENV_PATH"
+
+# Keep every job single-threaded; parallelism comes from running many jobs.
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+echo "[$(date)] host=$(hostname) map=$MAP seeds=$SEEDS budget=$BUDGET draw=$DRAW out=$OUT extra=${EXTRA:-none}"
+# EXTRA is deliberately unquoted so it can carry several flags.
+python three_arm/run.py --maps "$MAP" --seeds "$SEEDS" --budget "$BUDGET" \
+  --out "$OUT" $EXTRA
+echo "[$(date)] done map=$MAP draw=$DRAW"
