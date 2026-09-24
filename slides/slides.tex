@@ -1,0 +1,463 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usetheme{default}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{itemize items}[circle]
+\setbeamercolor{title}{fg=black}
+\setbeamercolor{frametitle}{fg=black}
+\setbeamerfont{frametitle}{series=\bfseries}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\GP}{\mathcal{GP}}
+\newcommand{\Norm}{\mathcal{N}}
+\newcommand{\Ulost}{U_{\text{lost}}}
+\newcommand{\good}{\textcolor{green!50!black}}
+\newcommand{\bad}{\textcolor{red!70!black}}
+
+\title{\bfseries Knowing the Outer Function vs.\ Observing the Intermediates}
+\subtitle{Splitting the composite-BO gain into its two parts}
+\date{}
+\author{}
+
+\begin{document}
+
+\begin{frame}[plain]
+\titlepage
+\vfill
+\small
+\texttt{github.com/MuhammadAli-CS/three-arm-composite}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Where we are}
+
+Composite problems: $f(x)=g(h(x))$, with $h$ an expensive black box and $g$ a
+known, cheap function.
+
+\medskip
+\begin{itemize}
+\item \textbf{Direct}: fit a GP to $f$, ignore the structure.
+\item \textbf{Composite}: fit GPs to $h$, push samples through $g$.
+\end{itemize}
+
+\medskip
+Composite won most benchmarks --- by anywhere from $\mathbf{121\%}$ to
+\textbf{nothing}.
+
+\bigskip
+\begin{block}{The question this work answers}
+We do not know \emph{why} it wins, because composite changes two things at once.
+\end{block}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The confound}
+
+Going from direct to composite gives the surrogate \textbf{two} advantages
+simultaneously:
+
+\bigskip
+\begin{enumerate}
+\item \textbf{It knows $g$} --- handed the outer function, never learns it from data.
+\item \textbf{It observes $h$} --- each expensive run returns $k$ numbers, not one.
+\end{enumerate}
+
+\bigskip
+Every result we have bundles these together.
+
+\begin{itemize}
+\item DTLZ2 wins by $121\%$ --- which advantage did it?
+\item RGB wins by nothing --- which one failed?
+\end{itemize}
+
+\bigskip
+\centering
+\emph{Two numbers cannot separate two effects.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The fix: a third arm}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & $g$ unknown & $g$ known \\
+\midrule
+observes $y$ only & arm 1 \textbf{direct} & \alert{arm 3 \textbf{latent}} \\
+observes $h$      & --- (incoherent)      & arm 2 \textbf{composite} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+\textbf{Arm 3} knows $g$ exactly, holds the \emph{same} GP prior on $h$ as
+composite, but never sees $h$ --- it must infer it from $y$.
+
+\bigskip
+\begin{align*}
+\text{latent} - \text{direct}    &= \text{the value of \textbf{knowing} } g\\
+\text{composite} - \text{latent} &= \text{the value of \textbf{observing} } h
+\end{align*}
+
+\medskip
+The two sum to the composite gain we already publish --- so the decomposition
+must add up, and any failure is a bug, not a finding.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{What should govern the split}
+
+Observing $h$ can only help where $y=g(h)$ fails to pin $h$ down.
+\textbf{Invertibility of $g$ is the controlling property.}
+
+\bigskip
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{$g$ injective}\\[2pt]
+$h=g^{-1}(y)$, so arms 2 and 3 see identical information.\\[4pt]
+$\Rightarrow$ observing $h$ worth \textbf{exactly 0}
+\end{column}
+\begin{column}{0.48\textwidth}
+\textbf{$g$ linear}\\[2pt]
+A sum of independent GPs \emph{is} a GP, so arm 3 collapses to arm 1.\\[4pt]
+$\Rightarrow$ knowing $g$ worth \textbf{$\approx 0$}
+\end{column}
+\end{columns}
+
+\bigskip
+\begin{block}{Why the linear case matters for the paper}
+Truss and RCM40 both have linear outer maps --- and both gave our weakest
+results.
+\end{block}
+
+\bigskip
+In between: what $g$ destroys is the \emph{fiber} $g^{-1}(y)$ --- two points for
+$z^2$, several for $\cos$, a half-line for a clipped map, a circle for a norm.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{How arm 3 infers $h$ --- the whole idea in one example}
+
+$g(z)=z^2$. You observe $y=4$ at \textbf{two nearby inputs}.
+
+\medskip
+Four candidates fit the data \emph{perfectly}:
+$(+2,+2)$, $(-2,-2)$, $(+2,-2)$, $(-2,+2)$.
+
+\medskip
+The data cannot choose. \textbf{Smoothness can}: a jump from $+2$ to $-2$ over a
+tiny step is not a plausible function.
+
+\bigskip
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+distance between inputs & correlation & same-sign advantage \\
+\midrule
+close   & $0.9$  & $2.9\times10^{16}$ \\
+medium  & $0.3$  & $14\times$ \\
+far     & $0.02$ & $1.2\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+Note what is learned: \emph{not} whether $h=+2$ or $-2$ (still 50/50), but that
+both points did the \textbf{same} thing.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{That is Bayes' rule}
+
+Score every candidate filling-in of $h$ on two questions:
+
+\begin{equation*}
+p(\mathbf h \mid \mathbf y)\;\propto\;
+\underbrace{\prod_{i=1}^{n}\Norm\bigl(y_i;\,g(h(x_i)),\,\sigma^2\bigr)}_{\text{does it match the data?}}
+\;\cdot\;
+\underbrace{\prod_{j=1}^{k}\Norm\bigl(h_j(X);\,m_j,\,v_jK\bigr)}_{\text{is it a plausible function?}}
+\end{equation*}
+
+\bigskip
+Neither factor works alone: the likelihood cannot choose between $\pm2$; the
+prior does not know the data.
+
+\bigskip
+\begin{alertblock}{Why this is the hard part}
+Arms 1 and 2 are ordinary GP regression --- closed form.
+A Gaussian prior times a \emph{non}-Gaussian likelihood is not Gaussian, so arm 3
+has \textbf{no formula} and needs MCMC. Every difficulty in this project has
+been here.
+\end{alertblock}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The experiment}
+
+19 outer maps applied to inner functions \textbf{drawn from the same GP family
+the surrogates assume}, so $h$ is never a confound.
+
+\medskip
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+Group & Maps & Purpose \\
+\midrule
+Controls & $z$, \; $e^{z}$, \; $\sinh z$, \; $y_1+y_2$ & answers known in advance \\
+Sweep & $(z-c)^2$, $c=0,0.5,1,2,3$ & one knob on \emph{how much} is destroyed \\
+Pairs & $|z|$, $\cos(\omega z)$, censoring maps & one property changed at a time \\
+Analogs & sum, product, norm, max, ratio & mirror Truss, DTLZ2, Color, Lake, RGB \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+$d=6$, 5 initial points $+$ 40 evaluations, \textbf{4 function draws $\times$ 5
+designs}, all arms sharing the initial design and acquisition.
+
+\medskip
+$\Rightarrow$ 380 BO runs per arm, $\approx$ 40 min on 16 cores.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Controls are not optional}
+
+The first full grid looked \textbf{completely reasonable} --- smooth trends,
+sensible signs, tight error bars.
+
+\medskip
+It was wrong.
+
+\bigskip
+\begin{center}
+\texttt{identity}: ``observing $h$'' must be \textbf{exactly 0}.\\[4pt]
+The code said \bad{$\mathbf{+0.956 \pm 0.274}$}.
+\end{center}
+
+\bigskip
+Three defects, all in arm 3's sampler. The decisive one: new points were
+initialised \emph{off} the constraint surface $\{g(h)=y\}$, which the sampler can
+never travel to once the likelihood is tight. Residual grew over iterations:
+
+\begin{center}
+\small
+$0.0001 \to 0.004 \to 0.027 \to 0.019 \to 0.043 \to \mathbf{0.121}$
+\end{center}
+
+\bigskip
+After the fix: \good{$-0.096 \pm 0.175$}, $\Ulost = 0$ exactly.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Results: three predictions held}
+
+\begin{center}
+\begin{tabular}{llr}
+\toprule
+Prediction & Condition & Measured \\
+\midrule
+observing $h$ $=0$ exactly & $z$, $e^z$, $\sinh z$ & \good{$-0.000\pm0.000$} \\
+knowing $g$ $\approx0$ & $y_1+y_2$ (linear) & \good{$+0.117\pm0.340$} \\
+censoring away from optimum $\approx0$ & $-\max(z,0)$ & \good{$-0.066\pm0.209$} \\
+censoring at the optimum $>0$ & clipped pair & \good{$+1.108\pm0.421$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+The linear row is the one that bears on the paper: \textbf{on Truss and RCM40
+there is no knowledge to exploit}, so whatever composite gains there must come
+from the extra observations alone.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The finding: \emph{where}, not \emph{how much}}
+
+Both maps censor. \texttt{relu} destroys \textbf{more} --- it collapses an entire
+half-line. Yet:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+Map & Censoring sits & $\Ulost$ & observing $h$ \\
+\midrule
+$-\max(z,0)$ & away from the optimum & $0.075$ & \good{$-0.066\pm0.209$} \\
+clipped pair & \textbf{at} the optimum & $0.580$ & \good{$+1.108\pm0.421$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+The rest of the table agrees --- sorting by $\Ulost$ does not sort by gain:
+
+\begin{center}
+\small
+\texttt{product} destroys $1.64$, pays $+0.21$ \quad$\cdot$\quad
+\texttt{sum} destroys $0.70$, pays $-0.18$ \quad$\cdot$\quad
+\texttt{abs} destroys $0.47$, pays $-0.06$
+\end{center}
+
+\bigskip
+\begin{block}{Sharper hypothesis}
+The question for a new problem is not ``is $g$ invertible?'' but
+\textbf{``is $g$ invertible near the Pareto front?''}
+\end{block}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{What did not hold: the sweep}
+
+$(z-c)^2$ --- same form, one parameter, information loss tuned by $c$. Designed
+to be the cleanest experiment in the set.
+
+\bigskip
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+$c$ & $0$ & $0.5$ & $1$ & $2$ & $3$ \\
+\midrule
+$\Ulost$ \textbf{at iteration 0} & $1.026$ & --- & $0.869$ & $0.104$ & $0.013$ \\
+observing $h$ (predicted) & large & & $\downarrow$ & $\downarrow$ & $\to 0$ \\
+observing $h$ \textbf{(measured)} & \bad{$+1.49$} & \bad{$+1.28$} & \bad{$+1.89$} & \bad{$+2.75$} & \bad{$+2.51$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+The knob \emph{does} turn on the initial design. Then, over BO iterations,
+$\Ulost$ falls for small $c$ and \textbf{rises} for large $c$ --- more data
+cannot increase uncertainty about points already observed.
+
+\medskip
+Second symptom: ``knowing $g$'' goes \bad{negative} ($-1.18$ at $c=3$). Arm 3
+holds the true kernel \emph{and} knows $g$; it should not lose to a plain GP.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Diagnosis so far}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Hypothesis & Test & Outcome \\
+\midrule
+Sampler budget too small & $4$ chains/$1500$ kept vs.\ $2$/$200$ & \good{ruled out} \\
+Warm starts accumulate error & cold vs.\ warm, same design & \good{ruled out} \\
+Level-set moves fail & acceptance in loop vs.\ in checks & \alert{confirmed} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+Move acceptance: $0.5$--$0.68$ on spread designs, \textbf{$0.000$} on clustered
+ones. Flipping one point's sign against its packed neighbours is the
+$10^{16}$-to-one rejection from the two-point example. The sampler stops changing its mind
+exactly when BO tightens the design.
+
+\medskip
+\emph{Fix: block moves --- flip a whole neighbourhood at once.}
+
+\bigskip
+\begin{alertblock}{But that is not the whole story}
+\texttt{identity} with the sampler forced on gives ``observing $h$''
+$=+0.409\pm0.133$ with $\Ulost=0.0016$ --- it \emph{has} the information and
+still loses. Raising the MC budget $16\times$ only moves it to $+0.275$.
+\end{alertblock}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Analogs vs.\ the benchmark results}
+
+\begin{center}
+\begin{tabular}{llrl}
+\toprule
+Analog & Benchmark & observing $h$ & Composite gain in the paper \\
+\midrule
+\texttt{product} & DTLZ2        & $+0.213$ & largest ($121\%$) \\
+\texttt{max}     & Lake         & $+0.139$ & moderate \\
+\texttt{ratio}   & RGB          & $+0.117$ & none \\
+\texttt{norm}    & Color        & $-0.095$ & moderate \\
+\texttt{sum}     & Truss, RCM40 & $-0.180$ & weakest \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip
+Ordering matches at both ends.
+
+\medskip
+\textbf{Caveat, stated plainly:} standard errors are $0.06$--$0.25$, so no
+individual pair separates significantly, and the correction subtracted from all
+of them is itself uncertain. Consistent with the benchmarks --- not confirmation
+of them.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Where this goes next}
+
+\textbf{To fix, in order}
+\begin{enumerate}
+\item The $+0.275$ residual on \texttt{identity} --- smallest case that still
+shows the defect: one intermediate, no multimodality, near-point posterior.
+Everything else is downstream.
+\item Block level-set moves.
+\item All-MLE hyperparameters in every arm (removes the last asymmetry rather
+than correcting for it).
+\end{enumerate}
+
+\bigskip
+\textbf{Cheapest test of the finding} --- no new BO runs
+\begin{itemize}
+\item Compute $\Ulost$ on each \emph{real} benchmark restricted to
+near-Pareto-optimal points.
+\item It should predict the composite gain better than $\Ulost$ over the whole
+domain.
+\item Uses points every existing run already evaluated.
+\end{itemize}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Summary}
+
+\begin{itemize}
+\item Composite BO bundles \textbf{knowing $g$} with \textbf{observing $h$};
+a third arm separates them, and the three numbers must telescope.
+\item Arm 3 is the hard part: no closed form, so MCMC over quantities never
+observed.
+\item \good{Held}: observing $h$ is exactly 0 when $g$ is injective; knowing $g$
+is $\approx 0$ when $g$ is linear (Truss, RCM40).
+\item \good{Finding}: \textbf{where} $g$ destroys information matters more than
+how much --- censoring away from the optimum costs nothing, censoring at it
+costs $13\times$ in final regret.
+\item \bad{Open}: the sweep runs backwards; a $+0.275$ bias survives on a
+control where the answer is provably 0.
+\end{itemize}
+
+\vfill
+\centering
+\small Code, results and full write-up:
+\texttt{github.com/MuhammadAli-CS/three-arm-composite}
+
+\end{frame}
+
+\end{document}

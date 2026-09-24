@@ -6,5 +6,7 @@ __pycache__/
 *.out
 *.toc
 *.synctex.gz
+*.nav
+*.snm
 # Scratch result directories
 results/scratch*/

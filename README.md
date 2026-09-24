@@ -23,6 +23,7 @@ composite - latent    = the value of observing h
 
 and the two sum to the composite gain by construction.
 
+**[`slides/slides.pdf`](slides/slides.pdf)** is a 16-slide meeting deck.
 **[`three_arm/design.pdf`](three_arm/design.pdf) is the full write-up** — a short
 overview first, then the reasoning, the test problems, the inference procedure,
 every measured quantity, and the validation evidence.
@@ -73,6 +74,7 @@ three_arm/test_functions.py   RFF function draws, the 23 outer maps, level-set m
 three_arm/arms.py             the three surrogates; LatentArm holds the sampler
 three_arm/run.py              BO loop, acquisition, validation checks, collection
 three_arm/design.tex/.pdf     the design document
+slides/slides.tex/.pdf        meeting deck
 cluster/                      SLURM submission (one job per map × draw)
 results/main/                 19 maps × 4 draws × 5 seeds
 results/identity_no_shortcut/ the control that forces MCMC onto a known answer
