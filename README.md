@@ -53,8 +53,9 @@ python three_arm/run.py --collect --out three_arm/results
 Reproduce the stored grid (19 maps × 4 function draws × 5 seeds, ~40 min on 16 cores):
 
 ```bash
+MAPS="identity sum exp_b1 sinh_b1 shiftsq_c0 shiftsq_c0.5 shiftsq_c1 shiftsq_c2 shiftsq_c3       abs cos_w1 cos_w2 cos_w4 relu clip_c2 product norm max ratio"
 for d in 0 1 2 3; do
-  python three_arm/run.py --group validate --group sweep --seeds 5 --draw-seed $d --jobs 16 --out results/main
+  python three_arm/run.py --maps $MAPS --seeds 5 --draw-seed $d --jobs 16 --out results/main
 done
 python three_arm/run.py --collect --out results/main
 ```
