@@ -203,7 +203,7 @@ been here.
 \end{frame}
 
 % ------------------------------------------------------------------
-\begin{frame}{What the two factors actually compute}
+\begin{frame}[shrink=6]{What the two factors actually compute}
 
 First, the notation. $\Norm(a;\,b,\,c)$ is not a distribution --- it is a
 \textbf{number}: the height of the bell curve with mean $b$ and variance $c$,
@@ -298,6 +298,54 @@ designs}, all arms sharing the initial design and acquisition.
 
 \medskip
 $\Rightarrow$ 380 BO runs per arm, $\approx$ 40 min on 16 cores.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}[shrink=8]{All 19 conditions}
+
+\begin{center}
+\tiny
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{llllrrr}
+\toprule
+Map & $g$ & What $g$ destroys & & $\Ulost$ & obs.\ $h$ & know $g$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Controls} --- answers known before the run}\\
+\texttt{identity}   & $z$          & nothing                      &                 & $0.000$ & \good{$0.000^\ast$} & $+0.41$ \\
+\texttt{exp\_b1}    & $e^{z}$      & nothing (monotone)           &                 & $0.000$ & \good{$0.000^\ast$} & $+0.63$ \\
+\texttt{sinh\_b1}   & $\sinh z$    & nothing (monotone)           &                 & $0.000$ & \good{$0.000^\ast$} & $+0.44$ \\
+\texttt{sum}        & $y_1+y_2$    & how the sum splits           & \emph{linear}   & $0.702$ & $-0.18$ & \good{$+0.12$} \\
+\midrule
+\multicolumn{7}{l}{\textbf{The sweep} --- one form, loss tuned by $c$; $\Ulost$ \emph{at iteration 0} in brackets}\\
+\texttt{shiftsq\_c0}   & $z^2$       & sign of $z$     & $[1.03]$ & $0.280$ & \bad{$+1.49$} & $+0.12$ \\
+\texttt{shiftsq\_c0.5} & $(z-0.5)^2$ & sign of $z-0.5$ &          & $0.283$ & \bad{$+1.28$} & $+0.63$ \\
+\texttt{shiftsq\_c1}   & $(z-1)^2$   & sign of $z-1$   & $[0.87]$ & $0.283$ & \bad{$+1.89$} & $-0.10$ \\
+\texttt{shiftsq\_c2}   & $(z-2)^2$   & rarely ambiguous& $[0.10]$ & $0.189$ & \bad{$+2.75$} & $-0.73$ \\
+\texttt{shiftsq\_c3}   & $(z-3)^2$   & almost nothing  & $[0.01]$ & $0.232$ & \bad{$+2.51$} & $-1.18$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Matched pairs} --- one property changed at a time}\\
+\texttt{abs}      & $|z|$                     & sign of $z$, with a kink  &                    & $0.474$ & $-0.06$ & $-0.01$ \\
+\texttt{cos\_w1}  & $\cos z$                  & which of few preimages    &                    & $2.434$ & $+2.45$ & $-0.79$ \\
+\texttt{cos\_w2}  & $\cos 2z$                 & which of more preimages   &                    & $1.284$ & $+1.06$ & $+0.70$ \\
+\texttt{cos\_w4}  & $\cos 4z$                 & which of many preimages   &                    & $1.161$ & $+1.08$ & $-0.80$ \\
+\texttt{relu}     & $-\max(z,0)$              & all $z<0$, \emph{away from} opt. &             & $0.075$ & \good{$-0.07$} & $+0.20$ \\
+\texttt{clip\_c2} & $\text{clip}(2y_1)+y_2$   & clipped coord., \emph{at} opt.   &             & $0.580$ & \good{$+1.11$} & $+0.28$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Benchmark analogs} --- \texttt{sum} above is the Truss / RCM40 analog}\\
+\texttt{product} & $y_1y_2$               & factoring, and sign   & DTLZ2        & $1.640$ & $+0.21$ & $-0.41$ \\
+\texttt{norm}    & $\sqrt{y_1^2+y_2^2}$   & direction             & Color        & $0.426$ & $-0.10$ & $-0.02$ \\
+\texttt{max}     & $\max(y_1,y_2)$        & the smaller value     & Lake         & $0.358$ & $+0.14$ & $+0.07$ \\
+\texttt{ratio}   & $u_1/(0.05+u_1+u_2)$   & scale                 & RGB          & $0.267$ & $+0.12$ & $-0.42$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{2pt}
+{\tiny Differences in final $\log_{10}$ regret, $>0$ favours the arm that sees
+more. ``obs.\ $h$'' has the measured $+0.41$ bias subtracted;
+$^\ast$ exact, no correction needed. SEs $0.06$--$0.48$.}
 
 \end{frame}
 
@@ -420,7 +468,7 @@ holds the true kernel \emph{and} knows $g$; it should not lose to a plain GP.
 \end{frame}
 
 % ------------------------------------------------------------------
-\begin{frame}{Diagnosis so far}
+\begin{frame}[shrink=5]{Diagnosis so far}
 
 \begin{center}
 \begin{tabular}{lll}
