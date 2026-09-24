@@ -74,7 +74,9 @@ three_arm/test_functions.py   RFF function draws, the 23 outer maps, level-set m
 three_arm/arms.py             the three surrogates; LatentArm holds the sampler
 three_arm/run.py              BO loop, acquisition, validation checks, collection
 three_arm/design.tex/.pdf     the design document
+three_arm/figures.py          regenerates every figure from the raw JSON
 slides/slides.tex/.pdf        meeting deck
+figures/                      decomposition, hypothesis, sweep, censoring, curves
 cluster/                      SLURM submission (one job per map × draw)
 results/main/                 19 maps × 4 draws × 5 seeds
 results/identity_no_shortcut/ the control that forces MCMC onto a known answer
@@ -82,7 +84,11 @@ results/identity_no_shortcut/ the control that forces MCMC onto a known answer
 
 Read results with `python three_arm/run.py --collect --out results/main`, which
 pools the function draws and recomputes the paired statistics over the pooled
-(draw, seed) pairs.
+(draw, seed) pairs. Regenerate the figures with:
+
+```bash
+python three_arm/figures.py --results results/main --out figures
+```
 
 ## Validation
 

@@ -5,6 +5,7 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{microtype}
+\usepackage{graphicx}
 
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\Xs}{\mathcal{X}}
@@ -973,8 +974,11 @@ show cannot come from knowing $g$.
 
 \paragraph{Where the information is destroyed matters more than how much.} This
 is the substantive result. \texttt{relu} and \texttt{clip\_c2} both censor, and
-\texttt{relu} is the \emph{more} destructive of the two by construction --- it
-collapses an entire half-line to a point. Yet:
+\texttt{relu} discards strictly more of the domain --- an entire half-line collapses
+to a single value, against a bounded interval for the clipped pair. But $\Ulost$
+is measured at the points BO \emph{actually evaluated}, and it comes out eight times
+\emph{smaller}, because that half-line sits away from the optimum and is rarely
+visited. The gain follows the measured loss, not the fiber:
 
 \begin{center}
 \begin{tabular}{llrr}
@@ -1089,6 +1093,49 @@ Stated carefully, though, these five numbers carry standard errors of $0.06$ to
 $0.25$, so no individual pair is separated significantly, and the correction
 subtracted from all of them is itself uncertain. Treat this as consistent with
 the benchmark results rather than as confirmation of them.
+
+
+\subsection{Figures}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/decomposition.pdf}
+\caption{Both effects on every condition, grouped as the design groups them.
+Error bars are paired standard errors over the 20 (draw, seed) pairs; the
+observing-$h$ bars carry the $0.409$ correction. Knowing $g$ turning negative
+across the sweep is a symptom, not a null result.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.78\linewidth]{../figures/hypothesis.pdf}
+\caption{The plot the study was designed to produce. No line is fitted: the
+apparent trend once the sweep is removed rests entirely on the three $\cos$ maps,
+and disappears without them.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/sweep.pdf}
+\caption{Left: the gain rises with $c$ where it was predicted to fall. Right: the
+diagnosis --- at $c=3$ the latent arm begins knowing $h$ almost exactly and ends two
+orders of magnitude worse, while small $c$ behaves correctly.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{../figures/censoring.pdf}
+\caption{The finding. The map with the larger fiber loses less where BO looks, and
+observing $h$ buys it nothing.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/curves.pdf}
+\caption{Median convergence over the pooled runs, \emph{uncorrected}: each
+latent--composite gap still contains the $+0.409$ handicap measured on
+\texttt{identity}. On \texttt{relu} that handicap is most of the visible gap.}
+\end{figure}
 
 \subsection{Predictions this generates}
 

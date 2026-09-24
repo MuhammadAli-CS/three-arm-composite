@@ -11,6 +11,7 @@
 
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{graphicx}
 
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\GP}{\mathcal{GP}}
@@ -403,10 +404,11 @@ from the extra observations alone.
 \end{frame}
 
 % ------------------------------------------------------------------
-\begin{frame}{The finding: \emph{where}, not \emph{how much}}
+\begin{frame}[shrink=12]{The finding: \emph{where}, not \emph{how much}}
 
-Both maps censor. \texttt{relu} destroys \textbf{more} --- it collapses an entire
-half-line. Yet:
+Both maps censor, and \texttt{relu} discards strictly more of the domain
+--- an entire half-line collapses to one value. But \emph{where} it discards it
+is different:
 
 \begin{center}
 \begin{tabular}{llrr}
@@ -430,6 +432,10 @@ The rest of the table agrees --- sorting by $\Ulost$ does not sort by gain:
 \end{center}
 
 \bigskip
+\begin{block}{$\Ulost$ already encodes this}
+It is measured at the points BO \emph{actually evaluated}, so a fiber that sits away from the optimum barely registers --- $0.075$ against $0.580$.
+\end{block}
+
 \begin{block}{Sharper hypothesis}
 The question for a new problem is not ``is $g$ invertible?'' but
 \textbf{``is $g$ invertible near the Pareto front?''}
@@ -525,6 +531,93 @@ Ordering matches at both ends.
 individual pair separates significantly, and the correction subtracted from all
 of them is itself uncertain. Consistent with the benchmarks --- not confirmation
 of them.
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Both effects, every condition}
+
+\begin{center}
+\includegraphics[width=\linewidth]{../figures/decomposition.pdf}
+\end{center}
+
+\vspace{-4pt}
+{\footnotesize Error bars are paired standard errors over the 20 (draw, seed)
+pairs. Note the sweep: \textcolor{blue!45!black}{knowing $g$} turns
+\emph{negative} as $c$ grows, which cannot happen if arm 3 is working --- it
+holds the true kernel \emph{and} knows $g$.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The plot this study was built to produce}
+
+\begin{columns}[c]
+\begin{column}{0.62\textwidth}
+\includegraphics[width=\linewidth]{../figures/hypothesis.pdf}
+\end{column}
+\begin{column}{0.36\textwidth}
+\small
+The hypothesis predicts an upward trend.
+
+\medskip
+Over all 16 lossy maps there is none.
+
+\medskip
+Dropping the sweep produces $r=+0.78$ --- but dropping the $\cos$ family as
+well leaves $+0.15$, so the apparent trend rests on three points.
+
+\medskip
+\textbf{No line is fitted}, deliberately: a regression here would assert a
+relationship the data do not support.
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The sweep, and why it fails}
+
+\begin{center}
+\includegraphics[width=\linewidth]{../figures/sweep.pdf}
+\end{center}
+
+\vspace{-2pt}
+{\footnotesize Right panel is the diagnosis: at $c=3$ the latent arm starts
+knowing $h$ almost exactly ($\Ulost = 0.004$) and ends two orders of magnitude
+worse. Small $c$ behaves correctly --- uncertainty falls as data arrives. More
+data cannot increase uncertainty about points already observed.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{The finding, in one figure}
+
+\begin{center}
+\includegraphics[width=0.88\linewidth]{../figures/censoring.pdf}
+\end{center}
+
+\vspace{-4pt}
+{\footnotesize $-\max(z,0)$ has the \emph{larger} fiber --- an entire half-line
+--- but it sits away from the optimum, so little is lost where BO looks and
+observing $h$ buys nothing. The clipped pair censors where the optimizer is
+working, and observing $h$ is worth $13\times$ in final regret.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Convergence, three arms}
+
+\begin{center}
+\includegraphics[width=\linewidth]{../figures/curves.pdf}
+\end{center}
+
+\vspace{-2pt}
+{\footnotesize Median over the 20 pooled runs, and \textbf{uncorrected} --- so
+each latent--composite gap here still contains the $+0.41$ handicap that the
+\texttt{identity} control measures. On \texttt{relu} that handicap is most of
+the visible gap; on \texttt{clip\_c2} and \texttt{shiftsq\_c0} it is a small
+part of it.}
 
 \end{frame}
 
