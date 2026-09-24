@@ -33,7 +33,7 @@ into its two parts. Part~\ref{part:overview} is a short summary of the whole
 idea. The remaining parts give the full detail: the reasoning behind the
 decomposition, the synthetic problems, the inference procedure for the new
 surrogate and the three defects found in it, what is measured, and what has and
-has not been verified.
+has not been verified, and the measured results.
 \end{abstract}
 
 \tableofcontents
@@ -853,14 +853,271 @@ Pooling over function draws mitigates it, since draws average over which modes
 happen to matter.
 
 \section{Results}
+\label{sec:results}
 
-The main grid is pending at the time of writing; it is produced by
-\texttt{run.py --collect}, which pools the function draws and recomputes the
-paired statistics over the pooled (draw, seed) pairs. The quantities to read off
-it are: ``observing $h$'' against $\Ulost$ along the sweep; ``knowing $g$'' on
-the linear map (predicted $\approx0$); ``observing $h$'' on the injective maps
-(predicted exactly $0$); the rectified-versus-clipped contrast; and the analogs
-against the corresponding benchmark results.
+Nineteen conditions, four function draws, five initial designs each: $380$ BO
+runs per arm. Everything below is pooled over the twenty (draw, seed) pairs with
+the paired standard error of Section~\ref{part:measure}.
+
+\subsection{How to read the numbers}
+
+The reported quantity is a difference of final $\log_{10}$ regrets, so it
+converts to a multiplicative factor: an ``observing $h$'' value of $d$ means the
+composite arm ends with $10^{d}$ times lower regret than the latent arm. A value
+of $1$ is a tenfold improvement; a value of $0$ means the two arms are
+indistinguishable.
+
+\paragraph{The bias correction.} On \texttt{identity} with the shortcut
+disabled --- so the general sampler runs on a problem where $h$ is exactly
+recoverable and $\Ulost=0.0016$ --- ``observing $h$'' measures
+$+0.409\pm0.133$ where the true value is $0$. The latent arm therefore carries a
+handicap unrelated to information, discussed in
+Section~\ref{sec:residual}. Every map whose latent arm invokes the sampler is
+reported both raw and with $0.409$ subtracted. The three maps that use the
+closed-form shortcut need no correction: there the latent arm \emph{is} the
+composite arm and the measurement is exact.
+
+\subsection{What each condition tests}
+
+\begin{center}
+\small
+\begin{tabular}{llp{3.6cm}p{3.3cm}}
+\toprule
+Map & $g$ & What $g$ destroys & Hypothesis \\
+\midrule
+\multicolumn{4}{l}{\emph{Controls --- answers known before the run}}\\
+\texttt{identity}   & $z$ & nothing & both effects exactly $0$ \\
+\texttt{exp\_b1}    & $e^{z}$ & nothing (monotone, positive) & observing $h$ exactly $0$ \\
+\texttt{sinh\_b1}   & $\sinh z$ & nothing (monotone, unbounded) & observing $h$ exactly $0$ \\
+\texttt{sum}        & $y_1+y_2$ & how the sum splits & knowing $g$ $\approx0$ \\
+\midrule
+\multicolumn{4}{l}{\emph{The sweep --- one form, information loss tuned by $c$}}\\
+\texttt{shiftsq\_c0}   & $(z-0)^2$   & sign of $z$   & largest gain \\
+\texttt{shiftsq\_c0.5} & $(z-0.5)^2$ & sign of $z-0.5$ & \\
+\texttt{shiftsq\_c1}   & $(z-1)^2$   & sign of $z-1$ & gain falls \\
+\texttt{shiftsq\_c2}   & $(z-2)^2$   & sign of $z-2$ (rarely ambiguous) & with $c$ \\
+\texttt{shiftsq\_c3}   & $(z-3)^2$   & almost nothing & gain $\to0$ \\
+\midrule
+\multicolumn{4}{l}{\emph{Matched pairs --- one property changed at a time}}\\
+\texttt{abs}     & $|z|$ & sign of $z$, with a kink & as \texttt{shiftsq\_c0}; kink is the only difference \\
+\texttt{cos\_w1} & $\cos z$    & which of several preimages & gain grows with the \\
+\texttt{cos\_w2} & $\cos 2z$   & which of more preimages & number of preimages \\
+\texttt{cos\_w4} & $\cos 4z$   & which of many preimages & \\
+\texttt{relu}    & $-\max(z,0)$ & everything below $0$, \emph{away from} the optimum & gain $\approx0$ \\
+\texttt{clip\_c2}& $\mathrm{clip}(2y_1,-1,1)+y_2$ & the clipped coordinate \emph{at} the optimum & gain large \\
+\midrule
+\multicolumn{4}{l}{\emph{Benchmark analogs}}\\
+\texttt{sum}     & $y_1+y_2$ & how the sum splits & Truss, RCM40 \\
+\texttt{product} & $y_1y_2$ & how it factors, and sign & DTLZ2 \\
+\texttt{norm}    & $\sqrt{y_1^2+y_2^2}$ & direction & Color \\
+\texttt{max}     & $\max(y_1,y_2)$ & the smaller value & Lake \\
+\texttt{ratio}   & $\frac{u_1}{0.05+u_1+u_2}$, $u=\mathrm{sigmoid}(y)$ & scale & RGB \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Measurements}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrl}
+\toprule
+Map & $\Ulost$ & \multicolumn{3}{c}{observing $h$} & knowing $g$ & Verdict \\
+\cmidrule(lr){3-5}
+ & & raw & corrected & factor & raw & \\
+\midrule
+\texttt{identity}      & $0.000$ & $-0.000$ & exact    & $1.0\times$   & $+0.409$ & \textbf{as predicted} \\
+\texttt{exp\_b1}       & $0.000$ & $-0.000$ & exact    & $1.0\times$   & $+0.625$ & \textbf{as predicted} \\
+\texttt{sinh\_b1}      & $0.000$ & $-0.000$ & exact    & $1.0\times$   & $+0.444$ & \textbf{as predicted} \\
+\midrule
+\texttt{shiftsq\_c0}   & $0.280$ & $+1.899$ & $+1.490$ & $31\times$    & $+0.115$ & \\
+\texttt{shiftsq\_c0.5} & $0.283$ & $+1.688$ & $+1.279$ & $19\times$    & $+0.625$ & sweep runs \\
+\texttt{shiftsq\_c1}   & $0.283$ & $+2.303$ & $+1.894$ & $78\times$    & $-0.100$ & \textbf{backwards} \\
+\texttt{shiftsq\_c2}   & $0.189$ & $+3.159$ & $+2.750$ & $563\times$   & $-0.726$ & \\
+\texttt{shiftsq\_c3}   & $0.232$ & $+2.923$ & $+2.514$ & $326\times$   & $-1.176$ & \\
+\midrule
+\texttt{abs}           & $0.474$ & $+0.352$ & $-0.057$ & $0.9\times$   & $-0.006$ & unlike \texttt{shiftsq\_c0} \\
+\texttt{cos\_w1}       & $2.434$ & $+2.861$ & $+2.452$ & $283\times$   & $-0.793$ & \\
+\texttt{cos\_w2}       & $1.284$ & $+1.471$ & $+1.062$ & $12\times$    & $+0.702$ & not monotone in $\omega$ \\
+\texttt{cos\_w4}       & $1.161$ & $+1.487$ & $+1.078$ & $12\times$    & $-0.797$ & \\
+\texttt{relu}          & $0.075$ & $+0.343$ & $-0.066$ & $0.9\times$   & $+0.201$ & \textbf{as predicted} \\
+\texttt{clip\_c2}      & $0.580$ & $+1.517$ & $+1.108$ & $13\times$    & $+0.281$ & \textbf{as predicted} \\
+\midrule
+\texttt{sum}           & $0.702$ & $+0.229$ & $-0.180$ & $0.7\times$   & $+0.117$ & \textbf{as predicted} \\
+\texttt{product}       & $1.640$ & $+0.622$ & $+0.213$ & $1.6\times$   & $-0.411$ & \\
+\texttt{norm}          & $0.426$ & $+0.314$ & $-0.095$ & $0.8\times$   & $-0.024$ & \\
+\texttt{max}           & $0.358$ & $+0.548$ & $+0.139$ & $1.4\times$   & $+0.067$ & \\
+\texttt{ratio}         & $0.267$ & $+0.526$ & $+0.117$ & $1.3\times$   & $-0.418$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Paired standard errors run from $0.06$ to $0.48$; the full set is in
+\texttt{run.py --collect}. ``Factor'' is $10^{\text{corrected}}$, the ratio of
+final regrets.
+
+\subsection{What held}
+
+\paragraph{The invertible controls are exact.} $-0.000\pm0.000$ on all three.
+When $g$ is injective the latent arm recovers $h$ from $y$ and becomes the
+composite arm, and the code reproduces that identity to machine precision. This
+is the check that failed at $+0.956$ before the defects of
+Section~\ref{sec:defects} were fixed.
+
+\paragraph{Knowing $g$ is worth nothing on a linear map.} $+0.117\pm0.340$ on
+\texttt{sum}, consistent with zero. The prediction was that a linear combination
+of independent GPs is itself a GP, so the latent arm collapses to a direct GP on
+$y$ with a particular kernel. It does. This is the prediction that bears on the
+paper: Truss and RCM40 have linear outer maps, so whatever composite gain they
+show cannot come from knowing $g$.
+
+\paragraph{Where the information is destroyed matters more than how much.} This
+is the substantive result. \texttt{relu} and \texttt{clip\_c2} both censor, and
+\texttt{relu} is the \emph{more} destructive of the two by construction --- it
+collapses an entire half-line to a point. Yet:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+Map & Censoring sits & $\Ulost$ & observing $h$ (corrected) \\
+\midrule
+\texttt{relu}     & away from the optimum & $0.075$ & $-0.066\pm0.209$ \\
+\texttt{clip\_c2} & at the optimum        & $0.580$ & $+1.108\pm0.421$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The rest of the table says the same thing. Sorting by $\Ulost$ does not sort by
+gain: \texttt{product} destroys the most information of any analog
+($\Ulost=1.64$) and pays $+0.213$; \texttt{sum} destroys $0.702$ and pays
+$-0.180$; \texttt{abs} destroys $0.474$ and pays $-0.057$. Whether the ambiguity
+falls where the optimizer is looking is what separates them.
+
+If this holds it sharpens the original hypothesis considerably. The quantity to
+compute for a new problem is not ``is $g$ invertible'' but ``is $g$ invertible
+\emph{near the Pareto front}''.
+
+\subsection{What did not hold: the sweep}
+\label{sec:sweepanomaly}
+
+The sweep was designed as the cleanest experiment in the set: one functional
+form, one parameter, information loss falling monotonically as $c$ grows. The
+gain from observing $h$ should have fallen with it. It rises --- $+1.49$,
+$+1.28$, $+1.89$, $+2.75$, $+2.51$ --- and the largest gains occur where $g$ is
+\emph{most} nearly injective.
+
+$\Ulost$ explains why: it is flat at $0.19$--$0.28$ across the whole sweep,
+where it should fall by two orders of magnitude. The knob does turn on the
+initial design --- median $\Ulost$ at iteration $0$ is $1.026$, $0.869$,
+$0.104$, $0.013$ for $c=0,1,2,3$, which is exactly the designed behavior --- and
+then, over BO iterations, it falls for small $c$ and \emph{rises} for large $c$.
+More data cannot increase uncertainty about points already observed.
+
+A second symptom points the same way: ``knowing $g$'' goes negative at $c\ge1$,
+reaching $-1.176$. The latent arm holds the generator's true kernel and knows
+$g$ exactly; losing to a direct GP by a factor of fifteen in final regret is not
+a null result.
+
+Three candidate explanations were tested and two eliminated:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Hypothesis & Test & Outcome \\
+\midrule
+Sampler budget too small & $4$ chains / burn $800$ / keep $1500$ vs.\ the loop's
+$2/150/200$ & \textbf{ruled out}: $\Ulost$ unchanged \\
+Warm starts accumulate error & cold fit vs.\ warm path, identical final design &
+\textbf{ruled out}: no consistent direction \\
+Level-set moves fail & acceptance in the loop vs.\ in \texttt{--check} &
+\textbf{confirmed}, but see below \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Move acceptance is $0.006$--$0.074$ inside the BO loop and exactly $0.000$ on
+clustered designs, against $0.5$--$0.68$ on the spread Sobol designs
+\texttt{--check} uses. Single-site branch flips are almost always rejected once
+neighbouring points are strongly coupled under the prior, so the sampler stops
+traversing branches exactly when the design tightens --- late in the run, when it
+matters. The fix is block moves: flip every point within a lengthscale of a
+random centre, which keeps the proposal symmetric and the prior ratio in closed
+form.
+
+That is a real defect, but it cannot be the whole story, because
+\texttt{identity} has no branches to move between and still shows a residual.
+
+\subsection{The residual on \texttt{identity}}
+\label{sec:residual}
+
+Run with \texttt{--no-shortcuts}, \texttt{identity} gives
+``observing $h$'' $=+0.409\pm0.133$ against a true value of $0$, with
+$\Ulost=0.0016$. The sampler recovers $h$; the gap is not information.
+
+The remaining asymmetry is how the predictive is formed. The composite arm draws
+$n_{mc}$ samples from one exact Gaussian conditional. The latent arm spreads the
+same $n_{mc}$ across a mixture over latent samples, so it covers two sources of
+randomness with one budget. Raising $n_{mc}$ from $256$ to $4096$ moves the gap
+from $+0.409\pm0.133$ to $+0.275\pm0.168$ --- it shrinks, but it does not vanish.
+About $+0.27$ is still unaccounted for on a problem where the latent arm
+provably has complete information.
+
+This is the smallest case that still exhibits the defect: one intermediate, no
+multimodality, no level-set structure, a posterior that is nearly a point. It is
+therefore the right place to debug, and everything in
+Section~\ref{sec:sweepanomaly} is downstream of it.
+
+\subsection{The analogs against the benchmark results}
+
+\begin{center}
+\begin{tabular}{llrl}
+\toprule
+Analog & Benchmark & observing $h$ (corrected) & Composite gain in the paper \\
+\midrule
+\texttt{product} & DTLZ2        & $+0.213$ & largest ($121\%$) \\
+\texttt{max}     & Lake         & $+0.139$ & moderate \\
+\texttt{ratio}   & RGB          & $+0.117$ & none \\
+\texttt{norm}    & Color        & $-0.095$ & moderate \\
+\texttt{sum}     & Truss, RCM40 & $-0.180$ & weakest \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The ordering matches at both ends: the DTLZ2 analog pays the most and the
+Truss/RCM40 analog pays the least, which is what the benchmark study found.
+Stated carefully, though, these five numbers carry standard errors of $0.06$ to
+$0.25$, so no individual pair is separated significantly, and the correction
+subtracted from all of them is itself uncertain. Treat this as consistent with
+the benchmark results rather than as confirmation of them.
+
+\subsection{Predictions this generates}
+
+\begin{enumerate}
+\item \textbf{Local, not global, invertibility should predict the composite
+gain.} Compute $\Ulost$ on each real benchmark restricted to near-Pareto-optimal
+points, and it should correlate with the measured composite gain better than
+$\Ulost$ computed over the whole domain. The \texttt{relu}/\texttt{clip}
+contrast predicts this directly and it is cheap to test --- no new BO runs, just
+a posterior fit on the points each existing run already evaluated.
+
+\item \textbf{Truss and RCM40 should gain from the extra observations only.}
+Their outer maps are linear, so knowing $g$ is worth nothing; the whole gain
+must be the $k$ numbers per evaluation. A direct test is to give the direct arm
+$k$ evaluations per iteration instead of one --- if the gain disappears, it was
+never about composite structure at all.
+
+\item \textbf{A kink at the optimum should not matter, but ambiguity should.}
+\texttt{abs} and \texttt{shiftsq\_c0} destroy the same information and differ
+only by smoothness; they measure $-0.057$ and $+1.490$. If that survives the
+defects above it says the acquisition function's difficulty with a kink is a
+larger effect than the inference problem --- worth isolating on its own.
+
+\item \textbf{The number of preimages should not be the controlling variable.}
+$\cos(\omega z)$ at $\omega=1,2,4$ gives $+2.45$, $+1.06$, $+1.08$ --- the
+\emph{fewest} preimages pays the most. If this holds it contradicts the natural
+reading of ``how much information is destroyed'' and supports the same local
+story as the censoring pair.
+\end{enumerate}
 
 % ======================================================================
 \part{Limitations}
