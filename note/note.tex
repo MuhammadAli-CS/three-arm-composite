@@ -1,0 +1,119 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[round]{natbib}
+\usepackage{hyperref}
+
+% \H is already defined by the LaTeX kernel as the Hungarian umlaut accent, so it
+% must be redefined rather than newly defined.
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\Y}{\mathcal{Y}}
+\renewcommand{\H}{\mathcal{H}}
+\newcommand{\Hset}{\mathbb{H}}
+
+\title{Notes on Bayesian Optimization of Composite Functions}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+Bayesian optimization is a class of methods for optimizing black-box functions $y(x)$.
+Bayesian optimization of composite functions proposes that optimization can be accelerated through so-called ``grey-box information''.  Specifically, it considers settings where $y(x) = g(h(x))$ for some known function $g$ and some black-box vector-valued function $h(x)$.  \citet{pmlr-v97-astudillo19a} showed that performance can be significantly accelerated by fitting a Gaussian process on $h$, which then implies a posterior distribution on $y(x)$, and then using expectetd improvement with respect to this new posterior distribution on $y(x)$.
+
+Significant improvements were observed in settings where $g(z) = \sum_{j=1}^m z_j^2$ but unpublished experiments on applications using other functions $g(\cdot)$ have seen much smaller improvements.
+
+This paper tackles the question, {\bf when does the composite modeling provide significant benefits?}
+
+\section{Model}
+
+We consider a setting where we wish to predict and possibly optimize a function $y(x)$,
+We suppose that $y(x) = g(h(x))$ where $x \in \mathbb{R}^d$ is a vector, $h(x) \in \mathbb{R}^m$ is an unknown vector-valued function whose output we can observe when performing experiments, $g(z)$ is a known function that takes $z \in \mathbb{R}^m$ as input.  We have performed experiments at a finite collection of points $\X = \{x_1, \ldots, x_n\} \subseteq \mathbb{R}^d$. We assume without loss of generality that each element of $\X$ is unique.
+
+We consider two sets of observations:
+\begin{itemize}
+\item The set of of observations of $y(x)$, $\Y = \{ (x_i, y(x_i)) : i=1,\ldots,n \}$.
+\item The set of of observations of $h(x)$, $\H = \{ (x_i, h(x_i)) : i=1,\ldots,n \}$.
+\end{itemize}
+
+$h(\cdot)$ is drawn from a Gaussian process with known mean function and kernel.
+
+We then compare two different posterior distributions, one obtained from conditioning on $\Y$ and the other from conditioning on $\H$. Observe that $\Y$ is computable from $\H$ and so conditioning on $\H$ is the same as conditioning on both $\Y$ and $\H$.
+
+Past work has focused on comparing the performance of these two models:
+
+\paragraph{Model 1 (Classical GP regression)} We place a Gaussian process prior on $y(\cdot)$. To perform inference, we calculate the conditional distribution of $y(x)$ at a new location $x$ given $\Y$.
+
+\paragraph{Model 2 (Composite functions)} We place a Gaussian process prior on $h(\cdot)$. This implies a prior distribution on $y(\cdot)$ via the identify $y(x) = g(h(x))$. We calculate conditional distributions given $\H$.
+
+We additionally compare with:
+
+\paragraph{Model 3 (Composite functions prior without composite observations)} As with Model 2, we place a Gaussian process prior on $h(\cdot)$. We calculate conditional distributions given $\Y$.
+
+Both model 3 and model 1 use the same prior. They differ only in the information provided. Thus, we feel that this comparison provides a more meaningful view on the benefits of incorporating composite information into prediction and Gaussian process regresion.
+
+\section{Analysis}
+
+We analyze the difference between model 1 and model 3.  Specifically, we will compare
+the cdfs $P(y(x) \le a \mid \Y)$ with $P(y(x) \le a \mid \H)$.
+
+\subsection{Calculating $P(y(x) \le a \mid \Y)$}
+We begin by observing that 
+$P(y(x) \le a \mid \Y)$
+can be computed via Bayes rule.
+
+Given an observation $y=y(x)$ at some $x$, consider the set of values for
+$h(x)$ that are compatible with $y$. This set is $H(y) := g^{-1}(y)$.
+By selecting one element of $H(y(x_i))$ for each observed $y(x_i)$ in $\Y$,
+we can construct a set in the same form of $\H$ that is compatible with $\Y$.
+\begin{equation}
+\{ (x_i, h_i) : i=1,\ldots,n, h_i \in H(y(x_i)) \}
+\end{equation}
+We refer to such a set as {\it plausible history}.
+There are $\prod_{i=1}^n |H(y(x_i))|$ plausible histories because each plausible history is described by a selection from $H(y(x_i))$ for each $i$.
+Let $\Hset$ be the set of all plausible histories.
+
+The density of the posterior distribution at some arbitrary point u can be written, for some arbitrary $x$ and $a$,
+\begin{equation*}
+P(y(x) \le a \mid \Y) = \sum_{H \in \Hset} P(\H = H) P(y(x) \le a \mid \H = H)
+\end{equation*}
+
+\input{plugin.tex}
+
+\subsection{Results That We Should Be Able to Show}
+
+It is straightforward to prove that the distributions are equal (i.e., 
+$P(y(x) \le a \mid \Y) = P(y(x) \le a \mid \H)$
+for all $a$) when $g$ is a bijection.
+
+(This is a good exercise for the SURP students. Do this without AI and give the
+proof on the board with only handwritten notes.)
+
+The converse is not true. When $g$ is not a bijection, there are examples where
+$P(y(x) \le a \mid \Y) = P(y(x) \le a \mid \H)$.  One trivial example is where
+$h(x)$ has a 2-D output, the GP on $h(x)$ is uncorrelated across outputs, $g$
+ignores one of the components of $h(x)$, and directly outputs the other one.
+
+Peter believes that when $g$ is linear, the two distributions are equal.
+Since many linear functions are not bijections, this is another example showing
+a $g$ that is not a bijection where the two distributions are equal.
+
+If $g$ is not a bijection and $y$ is one-dimensional, then in this case it may
+be possible to prove that the distributions are not equal.
+
+(These last two paragraphs are also good exercises for the SURP students. They are a little bit harder. But if you can't do it without AI, let's put it off until after the other exercises are done.)
+
+\subsection{Mutual Information Analysis}
+
+Pick some $i$.  Consider the joint probability distribution of $y(x)$ and $h(x_i)$ given that $h(x_i) \in H(y)$ for some fixed $y$. (Later, we will endow $y$ with the distribution of $g(h(x_i))$ under the GP prior.)
+
+Consider the mutual information between $y(x)$ and $h(x_i)$. How large is this mutual information for different choices of $g$?  Let's do a few examples where $y$ is 1-D and some where $y$ is 2-D.
+
+Generally, higher mutual info should correspond to having more value for composite modeling.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}
