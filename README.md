@@ -74,6 +74,7 @@ three_arm/test_functions.py   RFF function draws, the 23 outer maps, level-set m
 three_arm/arms.py             the three surrogates; LatentArm holds the sampler
 three_arm/run.py              BO loop, acquisition, validation checks, collection
 three_arm/design.tex/.pdf     the design document
+three_arm/exact.py            exact posteriors by enumerating plausible histories
 three_arm/figures.py          regenerates every figure from the raw JSON
 slides/slides.tex/.pdf        meeting deck
 figures/                      decomposition, hypothesis, sweep, censoring, curves
@@ -105,6 +106,33 @@ These exist because they work. An earlier version of the grid looked entirely
 reasonable — smooth trends, sensible signs, tight error bars — and was wrong;
 what exposed it was `identity`, where `observe h` must be exactly 0 and the code
 reported +0.956. Three defects were found and fixed (design doc §Defects).
+
+## Exact posteriors (`three_arm/exact.py`)
+
+Implements the plausible-histories construction from `note/note.tex`. For a
+noise-free observation with `g` finite-to-one, the Model 3 posterior is a
+finite weighted sum over complete branch assignments -- no MCMC, no Monte
+Carlo, no BO loop. Sublevel sets are found from the fibers rather than by
+quadrature, so the CDFs are analytic.
+
+```bash
+python three_arm/exact.py                # the comparison table
+python three_arm/exact.py --grade        # also grade the MCMC against it
+```
+
+| claim in the note | measured |
+|---|---|
+| `g` a bijection => Model 2 = Model 3 | **0.0000** on identity, exp, sinh |
+| `g` linear => Model 1 = Model 3 | **0.000000** on identity and sum, with Model 1 given the implied prior |
+
+The sampler grades at **0.002-0.010** maximum error in branch probability
+against the exact weights, so it is correct at `n = 8` on exactly the maps
+whose BO results are wrong -- which places the defect in the loop, not in the
+sampler's core.
+
+Enumeration costs `prod_i |fiber(y_i)|`, so `n` is reduced per map to stay
+tractable (8 for the squares, 3-6 for the cosines). `relu`, `clip` and the
+two-dimensional analogs have infinite fibers and stay with the sampler.
 
 ## Open problems
 
