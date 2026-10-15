@@ -276,3 +276,91 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def fig_linear(results_dir, path):
+    """The linear map, three ways: exact CDFs, paired runs, and the decomposition.
+
+    g = y_1 + y_2 is the one case with an analytic answer to the whole
+    question, so it is worth showing on its own.  Observing h leaves the split
+    of the sum completely undetermined -- U_lost is 0.702, third highest of the
+    analogs -- yet none of that uncertainty reaches f, which depends only on
+    the sum.
+    """
+    import glob, json
+    from torch.quasirandom import SobolEngine
+    import torch
+    from three_arm.arms import KnownPrior, rbf
+    from three_arm.exact import model1_cdf, model1_cdf_oracle
+    from three_arm.test_functions import DTYPE, make_problem
+
+    torch.set_default_dtype(DTYPE)
+    p = make_problem("sum", d=6, lengthscale=0.5, draw_seed=0)
+    prior = KnownPrior.from_problem(p)
+    X = SobolEngine(6, scramble=True, seed=11).draw(12).to(DTYPE)
+    y, H = p.f(X), p.h(X)
+    xq = SobolEngine(6, scramble=True, seed=77).draw(1).to(DTYPE)
+    grid = torch.linspace(0.05, 0.95, 601, dtype=DTYPE)
+
+    # Model 3 (composite prior, y only) == Model 1 with the implied prior.
+    c3 = model1_cdf_oracle(p, prior, X, y, xq, grid)
+    c1 = model1_cdf(X, y, xq, grid)                      # hyperparameters by MLE
+    # Model 2: condition each h_j on its own observations; the sum is Gaussian.
+    L = prior.unit_chol(X)
+    ks = rbf(X, xq, prior.ls); a = torch.cholesky_solve(ks, L)
+    span = p.q99 - p.q01
+    mu = sum(float(prior.m[j] + (a.squeeze(-1) * (H[:, j] - prior.m[j])).sum())
+             for j in range(2))
+    var = float((1.0 - (ks * a).sum()).clamp_min(1e-12)) * float(prior.v.sum())
+    c2 = 0.5 * (1.0 + torch.erf(((grid * span + p.q01) - mu)
+                                / (math.sqrt(var) * math.sqrt(2.0))))
+
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(10.4, 3.3))
+
+    a1.plot(grid, c3, color=C_OBS, lw=3.0, label="Model 3  (knows $g$, sees $y$)")
+    a1.plot(grid, c2, color=C_KNOW, lw=1.4, ls="--", label="Model 2  (sees $h$)")
+    a1.plot(grid, c1, color="0.45", lw=1.4, ls=":", label="Model 1  (GP on $y$, MLE)")
+    a1.set_xlabel("$a$"); a1.set_ylabel("$P(y(x) \leq a \mid \cdot)$")
+    a1.set_title("Models 2 and 3 coincide exactly", fontsize=9)
+    a1.legend(fontsize=7, loc="upper left")
+    a1.annotate(f"$\sup|M_2-M_3| = {float((c2-c3).abs().max()):.6f}$\n"
+                f"$\sup|M_1-M_3| = {float((c1-c3).abs().max()):.3f}$  (MLE only)",
+                xy=(0.52, 0.12), xycoords="axes fraction", fontsize=7.5, color="0.3")
+
+    # paired runs
+    d, c = [], []
+    for f in sorted(glob.glob(os.path.join(results_dir, "sum*.json"))):
+        b = json.load(open(f))
+        d += [log_regret(r["best"][-1], b["f_min"]) for r in b["results"]["direct"]]
+        c += [log_regret(r["best"][-1], b["f_min"]) for r in b["results"]["composite"]]
+    lo, hi = min(d + c) - 0.3, max(d + c) + 0.3
+    a2.plot([lo, hi], [lo, hi], color="k", lw=0.8)
+    a2.scatter(d, c, s=28, color=C_OBS, zorder=3)
+    a2.set_xlim(lo, hi); a2.set_ylim(lo, hi)
+    a2.set_xlabel("direct, final $\log_{10}$ regret")
+    a2.set_ylabel("composite")
+    wins = sum(1 for x, z in zip(d, c) if z < x)
+    a2.set_title(f"composite wins {wins}/{len(d)} paired runs", fontsize=9)
+    a2.annotate("below the line\n= composite better", xy=(0.04, 0.9), fontsize=7.5,
+                xycoords="axes fraction", color="0.4", style="italic", va="top")
+
+    # decomposition
+    from three_arm.run import paired
+    lat = []
+    for f in sorted(glob.glob(os.path.join(results_dir, "sum*.json"))):
+        b = json.load(open(f))
+        lat += [log_regret(r["best"][-1], b["f_min"]) for r in b["results"]["latent"]]
+    eff = [("knowing $g$", paired(d, lat)), ("observing $h$", paired(lat, c)),
+           ("total", paired(d, c))]
+    xs = range(len(eff))
+    # Two standard errors, so the bars support the claim in the title: at one
+    # SE the total would not cross zero and the figure would contradict itself.
+    a3.bar(xs, [v[0] for _, v in eff], 0.55, yerr=[2.0 * v[1] for _, v in eff],
+           color=[C_KNOW, C_OBS, "0.55"], capsize=4)
+    a3.axhline(0, color="k", lw=0.9)
+    a3.set_xticks(list(xs)); a3.set_xticklabels([k for k, _ in eff], fontsize=8)
+    a3.set_ylabel("difference in final $\log_{10}$ regret")
+    a3.set_title("no effect reaches $2$ SE", fontsize=9)
+    a3.annotate("error bars: $\pm 2$ SE", xy=(0.04, 0.04), xycoords="axes fraction",
+                fontsize=7.5, color="0.4", style="italic")
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)

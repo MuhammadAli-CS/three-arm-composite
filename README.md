@@ -77,7 +77,7 @@ three_arm/design.tex/.pdf     the design document
 three_arm/exact.py            exact posteriors by enumerating plausible histories
 three_arm/figures.py          regenerates every figure from the raw JSON
 slides/slides.tex/.pdf        meeting deck
-figures/                      decomposition, hypothesis, sweep, censoring, curves
+figures/                      decomposition, hypothesis, sweep, censoring, curves, linear
 cluster/                      SLURM submission (one job per map × draw)
 results/main/                 19 maps × 4 draws × 5 seeds
 results/identity_no_shortcut/ the control that forces MCMC onto a known answer

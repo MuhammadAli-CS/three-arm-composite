@@ -341,7 +341,8 @@ def _fit_n(problem, d, n, cap):
     return 2
 
 
-def run(map_name, n, d, draw_seed, n_query, grade, noise, cap=60_000):
+def run(map_name, n, d, draw_seed, n_query, grade, noise, cap=60_000,
+        keep=4000, chains=4):
     from torch.quasirandom import SobolEngine
     p = make_problem(map_name, d=d, lengthscale=0.5, draw_seed=draw_seed)
     prior = KnownPrior.from_problem(p)
@@ -383,8 +384,8 @@ def run(map_name, n, d, draw_seed, n_query, grade, noise, cap=60_000):
 
     if grade:
         from three_arm.arms import LatentArm
-        arm = LatentArm(p, noise=noise, n_chains=4, burn_first=1500,
-                        burn=1500, keep=4000, thin=5, shortcuts=False, seed=0)
+        arm = LatentArm(p, noise=noise, n_chains=chains, burn_first=1500,
+                        burn=1500, keep=keep, thin=5, shortcuts=False, seed=0)
         arm.fit(X, None, y)
         # Compare the sampler's branch weights with the exact ones.
         Hmat, wts, _ = histories(p, X, y, prior)
@@ -414,6 +415,8 @@ def main():
     ap.add_argument("--queries", type=int, default=8)
     ap.add_argument("--grade", action="store_true", help="also grade the MCMC sampler")
     ap.add_argument("--noise", type=float, default=1e-3)
+    ap.add_argument("--keep", type=int, default=4000, help="kept samples per chain when grading")
+    ap.add_argument("--chains", type=int, default=4)
     a = ap.parse_args()
     torch.set_default_dtype(DTYPE)
 
@@ -425,7 +428,8 @@ def main():
     print(hdr); print("-" * len(hdr))
     for m in a.maps:
         try:
-            r = run(m, a.n, a.d, a.draw_seed, a.queries, a.grade, a.noise)
+            r = run(m, a.n, a.d, a.draw_seed, a.queries, a.grade, a.noise,
+                    keep=a.keep, chains=a.chains)
         except RuntimeError as exc:
             print(f"{m:13s}  {exc}")
             continue
