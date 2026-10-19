@@ -364,3 +364,87 @@ def fig_linear(results_dir, path):
     a3.annotate("error bars: $\pm 2$ SE", xy=(0.04, 0.04), xycoords="axes fraction",
                 fontsize=7.5, color="0.4", style="italic")
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
+
+
+# Polynomial degree of each member of the bijectivity family; exp and sinh are
+# not polynomials and appear only where degree is not the x-axis.
+_DEGREE = {"root1": 1, "root2": 2, "root3": 3, "root4": 4, "root5": 5,
+           "mono3": 3, "mono5": 5}
+
+
+def fig_bijectivity(json_path, path, n_show=40):
+    """Does injectivity or nonlinearity predict the composite advantage?
+
+    Three panels on the same numbers: the gain against measured injectivity,
+    against polynomial degree, and against training-set size.  Regret is
+    deliberately absent -- an injective g is monotone, so its optimum sits at
+    an endpoint of the reachable range while a non-injective one can be
+    interior, which confounds any regret comparison between the two classes.
+    """
+    import json
+    blob = json.load(open(json_path))
+    ns = blob["ns"]
+    nbar, kind = blob["nbar"], blob["kind"]
+    maps = list(nbar)
+    inj = lambda m: kind[m] in ("identity", "invertible", "linear")
+
+    def gain(m, n):
+        o = blob["results"][m][str(n)]
+        d = [x - y for x, y in zip(o["cd"], o["cc"])]
+        mu = sum(d) / len(d)
+        se = (sum((x - mu) ** 2 for x in d) / (len(d) - 1) / len(d)) ** 0.5
+        return mu, se
+
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(11.2, 3.6))
+
+    # --- (a) against measured injectivity -------------------------------
+    for m in maps:
+        g, se = gain(m, n_show)
+        a1.errorbar(nbar[m], g, yerr=se, marker="o" if inj(m) else "s",
+                    ms=7, color=C_KNOW if inj(m) else C_BAD, capsize=2, zorder=3)
+        a1.annotate(m, (nbar[m], g), fontsize=6.5, xytext=(6, 2),
+                    textcoords="offset points", color="0.35")
+    a1.set_xscale("linear"); a1.set_yscale("log")
+    a1.set_xlabel(r"$\bar n = \mathbb{E}\,|g^{-1}(y)|$   (measured)")
+    a1.set_ylabel("CRPS gain, direct $-$ composite")
+    a1.set_title("injectivity does not order the gain", fontsize=9)
+    a1.scatter([], [], marker="o", color=C_KNOW, label="injective")
+    a1.scatter([], [], marker="s", color=C_BAD, label="non-injective")
+    a1.legend(fontsize=7.5, loc="lower right")
+
+    # --- (b) against polynomial degree, matched pairs side by side -------
+    poly = [m for m in maps if m in _DEGREE]
+    for m in poly:
+        g, se = gain(m, n_show)
+        off = -0.08 if inj(m) else 0.08
+        a2.errorbar(_DEGREE[m] + off, g, yerr=se, marker="o" if inj(m) else "s",
+                    ms=7, color=C_KNOW if inj(m) else C_BAD, capsize=2, zorder=3)
+    for deg in (3, 5):                      # join the matched pairs
+        pair = [m for m in poly if _DEGREE[m] == deg]
+        if len(pair) == 2:
+            a, b_ = (gain(m, n_show)[0] for m in pair)
+            a2.plot([deg, deg], [a, b_], color="0.7", lw=0.9, zorder=1)
+            a2.annotate(f"{abs(a - b_) / min(a, b_):.0%}", (deg, max(a, b_)),
+                        xytext=(0, 7), textcoords="offset points", ha="center",
+                        fontsize=7, color="0.4")
+    a2.set_yscale("log"); a2.set_xticks([1, 2, 3, 4, 5])
+    a2.set_xlabel("polynomial degree")
+    a2.set_title("degree does, and matched pairs nearly coincide", fontsize=9)
+
+    # --- (c) against training-set size ----------------------------------
+    for m in maps:
+        gs = [gain(m, n)[0] for n in ns]
+        a3.plot(ns, gs, marker="o", ms=3.5, lw=1.2,
+                color=C_KNOW if inj(m) else C_BAD,
+                alpha=0.85, ls="-" if inj(m) else "--")
+    a3.set_xscale("log"); a3.set_yscale("log")
+    a3.set_xticks(ns); a3.set_xticklabels([str(n) for n in ns])
+    a3.xaxis.set_minor_locator(plt.NullLocator())      # otherwise 5 and 6x10^0 collide
+    a3.set_xlabel("training points $n$")
+    a3.set_ylabel("CRPS gain")
+    a3.plot([], [], color=C_KNOW, ls="-", label="injective")
+    a3.plot([], [], color=C_BAD, ls="--", label="non-injective")
+    a3.legend(fontsize=7.5, loc="lower left")
+    a3.set_title("the advantage does not wash out with data", fontsize=9)
+
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)

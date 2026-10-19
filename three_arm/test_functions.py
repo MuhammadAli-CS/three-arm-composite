@@ -158,6 +158,31 @@ def _max_walk(h, gen):
     return prop if prop[small] < prop[1 - small] else None
 
 
+def _poly_swap(roots):
+    """Jump to another real preimage of the same value.
+
+    Only needed if the latent arm is ever run on these maps; the composite vs
+    direct comparison does not use it.  Roots of the shifted polynomial are
+    found numerically, which is cheap at these degrees.
+    """
+    import numpy as np
+
+    def move(h, gen):
+        z = float(h[0])
+        coef = np.poly(np.array(roots, dtype=float))          # monic, roots a_i
+        target = float(np.polyval(coef, z))
+        shifted = coef.copy(); shifted[-1] -= target
+        rts = np.roots(shifted)
+        real = [float(r.real) for r in rts
+                if abs(r.imag) < 1e-8 and abs(r.real - z) > 1e-6]
+        if not real:
+            return None
+        pick = real[int(torch.randint(len(real), (1,), generator=gen))]
+        prop = h.clone(); prop[0] = pick
+        return prop
+    return move
+
+
 # --------------------------------------------------------------------------
 # Outer maps
 # --------------------------------------------------------------------------
@@ -190,6 +215,45 @@ def _build_maps() -> Dict[str, OuterMap]:
         add(OuterMap(f"sinh_b{b:g}", 1, lambda y, b=b: torch.sinh(b * y[..., 0]),
                      "invertible", "nothing (monotone, unbounded)",
                      inverse=lambda v, b=b: torch.asinh(v) / b))
+
+    # ----------------------------------------------------------------
+    # Bijectivity family: g(z) = prod_i (z - a_i).
+    #
+    # The proposition says a bijective g gives the composite model no
+    # information advantage, whatever its nonlinearity.  Degree alone cannot
+    # test that, because a higher-degree polynomial is also a wilder function
+    # and harder for any GP to fit.  So each non-injective member is paired
+    # with a monomial z^m of the SAME degree, which is strictly monotone for
+    # odd m: same growth, same curvature scale, opposite injectivity.
+    #
+    # Roots are spread across the bulk of the standardized h (sd ~ 1.3) so
+    # that the ambiguous region is actually visited.
+    ROOTS = {1: [0.0], 2: [-1.0, 1.0], 3: [-1.5, 0.0, 1.5],
+             4: [-1.5, -0.5, 0.5, 1.5], 5: [-2.0, -1.0, 0.0, 1.0, 2.0]}
+
+    def _poly(a):
+        def fn(y, a=a):
+            z = y[..., 0]
+            out = torch.ones_like(z)
+            for r in a:
+                out = out * (z - r)
+            return out
+        return fn
+
+    for m, a in ROOTS.items():
+        kind = "linear" if m == 1 else "lossy"
+        add(OuterMap(f"root{m}", 1, _poly(a), kind,
+                     "which of up to %d preimages" % m,
+                     inverse=(lambda v: v) if m == 1 else None,
+                     linear_coef=[1.0] if m == 1 else None,
+                     moves=[] if m == 1 else [_poly_swap(a)]))
+
+    # Matched injective partners: z^m is strictly increasing for odd m, so it
+    # is nonlinear, same degree, and loses nothing.
+    for m in (3, 5):
+        add(OuterMap(f"mono{m}", 1, lambda y, m=m: y[..., 0] ** m,
+                     "invertible", "nothing (monotone, odd power)",
+                     inverse=lambda v, m=m: v.sign() * v.abs() ** (1.0 / m)))
 
     # headline sweep: same form, information loss controlled by c
     for c in (0.0, 0.5, 1.0, 2.0, 3.0):
@@ -247,6 +311,11 @@ GROUPS: Dict[str, List[str]] = {
     "pairs": ["shiftsq_c0", "abs", "exp_b1", "sinh_b1",
               "cos_w1", "cos_w2", "cos_w4", "relu", "clip_c2"],
     "analogs": ["sum", "product", "norm", "max", "ratio"],
+    # Composite vs Direct only: does bijectivity, rather than nonlinearity,
+    # decide the gain?  root1 is linear; mono3/mono5 are nonlinear but
+    # injective; root2..root5 are non-injective at matched degrees.
+    "bijectivity": ["root1", "mono3", "mono5", "exp_b1", "sinh_b1",
+                    "root2", "root3", "root4", "root5"],
 }
 
 

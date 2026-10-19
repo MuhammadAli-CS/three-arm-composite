@@ -75,6 +75,8 @@ three_arm/arms.py             the three surrogates; LatentArm holds the sampler
 three_arm/run.py              BO loop, acquisition, validation checks, collection
 three_arm/design.tex/.pdf     the design document
 three_arm/exact.py            exact posteriors by enumerating plausible histories
+three_arm/injectivity.py      measures E|g^-1(y)| per map, rather than assuming it
+three_arm/predictive.py       Composite vs Direct on held-out predictive accuracy
 three_arm/figures.py          regenerates every figure from the raw JSON
 slides/slides.tex/.pdf        meeting deck
 figures/                      decomposition, hypothesis, sweep, censoring, curves, linear
