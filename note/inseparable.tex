@@ -1,0 +1,111 @@
+\section{Why a one-dimensional $g$ cannot settle this}
+\label{sec:inseparable}
+
+The design above pairs each non-bijective map with a bijective one of the same
+degree, on the reasoning that a Gaussian process should find two degree-5
+polynomials about equally hard, so any difference between them is
+attributable to bijectivity. That reasoning is wrong, and the way it fails
+rules out the whole approach.
+
+\paragraph{A monotone $g$ preserves the shape of $h$; a folding one does not.}
+If $g$ is increasing, $g(h(x))$ has exactly the peaks and valleys that $h(x)$
+has, merely relabelled: the objective is a warped copy of the inner function.
+If $g$ folds --- turns around at some interior point --- then every time
+$h(x)$ sweeps past that point the objective turns around too, and $y(x)$
+acquires a feature that $h(x)$ never had.
+
+Counting turning points along a line through the input space:
+
+\begin{center}
+\begin{tabular}{llr}
+\toprule
+Map & & Turns in $y(x)$ \\
+\midrule
+$h$ itself & --- & 1 \\
+\midrule
+\texttt{root1}, \texttt{mono3}, \texttt{mono5}, \texttt{exp\_b1}, \texttt{sinh\_b1}
+ & all bijective & 1 \\
+\texttt{root3}, \texttt{root5} & both non-bijective & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Every bijective map leaves the shape of $h$ untouched; every
+non-bijective one adds a fold. The correspondence is exact, and the same holds
+along the root-spread family: $s=0$ gives one turn and every $s>0$ gives two or
+three.
+
+\paragraph{This is forced, not incidental.} For a scalar $g$,
+\[
+\text{non-injective}
+\iff \text{non-monotone}
+\iff g \text{ folds}
+\iff y(x) \text{ gains turning points,}
+\]
+and a stationary GP fits a function with more turning points less well. So in
+one dimension, \textbf{destroying information and making the objective harder
+to model are the same operation}. They cannot be separated by choosing a
+better one-dimensional family, because the implication runs through
+monotonicity and admits no exceptions.
+
+The matched pairs therefore do not do what they were built to do, and neither
+does the root-spread sweep. Both move injectivity and model difficulty
+together.
+
+\paragraph{What the sweep can still establish.} The confound has a direction,
+which makes the evidence asymmetric. Spreading the roots raises both the
+ambiguity and the oscillation, and the oscillation pushes the gain
+\emph{up}. So:
+
+\begin{itemize}\itemsep1pt
+\item a gain that \emph{rises} with $\bar n$ is uninterpretable --- either
+cause would produce it;
+\item a gain that stays \emph{flat} is strong evidence against injectivity
+mattering, since it holds against a tailwind.
+\end{itemize}
+
+\noindent The degree-2 row is also informative, though not in the way first
+intended: with two roots symmetric about the origin, spreading them shifts the
+parabola vertically and the affine normalisation removes the shift exactly, so
+all five maps in that row are the \emph{same problem} to machine precision
+($2\times10^{-16}$). Five independent runs of an identical problem measure the
+Monte Carlo noise floor directly, which calibrates how much movement elsewhere
+is real.
+
+\paragraph{The escape is more than one intermediate.} With $k\ge2$, $g$ can map
+two different \emph{vectors} to the same value without folding along any
+direction. The clearest case is $g(\mathbf y)=\sum_i y_i$: the split of the sum
+is unrecoverable, yet $g$ is a plane, nothing folds, and $f$ remains exactly a
+Gaussian process so the direct model is correctly specified. Measured, the
+objective keeps exactly one turning point at every $k$:
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+$g$ & $k=2$ & 4 & 8 & 16 \\
+\midrule
+$\sum_i y_i$ \quad (linear, correctly specified) & 1 & 1 & 1 & 1 \\
+$\max_i y_i$ \quad (one kink, no folds) & 2 & 2 & 3 & 6 \\
+$\sum_i y_i^2$ \quad (folds) & 1 & 0 & 2 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Along the top row the number of discarded dimensions grows with $k$
+while model difficulty is pinned, which is the separation one dimension cannot
+provide. Two caveats keep this from being the final answer. For the linear
+family the discarded information is irrelevant to $f$ --- the objective depends
+only on the sum --- so the proposition already predicts exactly zero and the
+row is a control rather than a discovery, albeit one at the $K$ values of the
+real benchmarks. For $\max$ the discarded information \emph{is} relevant, but
+its turning-point count still climbs from 2 to 6, so the pinning is partial.
+
+\paragraph{Where this points.} Every two-arm design we have tried runs into the
+same wall from a different direction: regret because bijectivity decides where
+the optimum can sit, high $\bar n$ because no bijective map can be matched on
+difficulty, and now matched degrees because folding and information loss
+coincide. The common cause is that Direct differs from Composite in two ways at
+once, and no choice of $g$ separates them. A model that holds the prior on
+$\mathbf h$ fixed and varies only whether $\mathbf h$ is observed differs in one
+way by construction, at any $g$ --- which is the three-arm comparison, arrived
+at here from a third independent direction.

@@ -312,6 +312,32 @@ def _build_maps() -> Dict[str, OuterMap]:
                  moves=[_clip_pair_walk(2.0)]))
 
     # two inputs -> one output: analogs of the real benchmarks
+    # ----------------------------------------------------------------
+    # Intermediate-count sweep: information loss WITHOUT folding.
+    #
+    # In one dimension non-injective means non-monotone, which means g folds,
+    # which means y(x) gains turning points -- so destroying information and
+    # making the objective harder to fit are the same operation and cannot be
+    # told apart.  With k intermediates they separate:
+    #
+    #   sum_k    linear, so f is exactly a GP and Direct is correctly
+    #            specified -- the misspecification channel is pinned at zero
+    #            for every k, while observing h still reveals the split that
+    #            y can never show.  Pure information.
+    #   max_k    one kink, no folds: mild misspecification, same information.
+    #   sq_k     sum of squares, which does fold: both channels active.
+    #
+    # k therefore moves information and the row moves misspecification,
+    # independently.  k = 8 matches Truss, k = 6 Color, k = 29 power flow.
+    for k in (2, 4, 8, 16):
+        add(OuterMap(f"sum_k{k}", k, lambda y: y.sum(-1), "linear",
+                     f"the split of a sum over {k} intermediates",
+                     linear_coef=[1.0] * k, moves=[_sum_shift] if k == 2 else []))
+        add(OuterMap(f"max_k{k}", k, lambda y: y.max(-1).values, "lossy",
+                     f"every value but the largest of {k}"))
+        add(OuterMap(f"sq_k{k}", k, lambda y: (y ** 2).sum(-1), "lossy",
+                     f"the sign of each of {k} intermediates"))
+
     add(OuterMap("sum", 2, lambda y: y[..., 0] + y[..., 1], "linear",
                  "how the sum splits", analog="Truss / RCM40",
                  linear_coef=[1.0, 1.0], moves=[_sum_shift]))
@@ -345,6 +371,10 @@ GROUPS: Dict[str, List[str]] = {
     # Degree held fixed, injectivity swept by sliding the roots together.
     "spread": [f"spr{m}s{s:03d}" for m in (2, 3, 4, 5, 6)
                for s in (0, 25, 50, 75, 100)],
+    # Information loss without folding: k moves information, the family moves
+    # misspecification.  The linear row is the decisive one.
+    "kcount": [f"{fam}_k{k}" for fam in ("sum", "max", "sq")
+               for k in (2, 4, 8, 16)],
 }
 
 
