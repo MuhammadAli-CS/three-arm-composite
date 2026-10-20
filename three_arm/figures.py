@@ -627,38 +627,122 @@ def fig_channels(json_path, path):
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
 
 
+def _spr_label(code):
+    """Turn spr5s075 into something a reader can parse."""
+    if not code.startswith("spr"):
+        return code
+    m, s = int(code[3]), int(code[5:]) / 100.0
+    if s == 0:
+        return f"$z^{m}$"
+    return f"deg {m}, spread {s:g}"
+
+
 def fig_channels_simple(json_path, path):
-    """The same result as fig_channels, in the plainest form: one row per map,
-    two bars, sorted.  The information bars for the injective maps are exactly
-    zero and so have no visible bar at all, which is the point."""
+    """The result in the plainest form available.
+
+    Both bars answer the same question -- how different is Direct's prediction
+    from Composite's -- but for two different reasons, and only one of them is
+    something bijectivity can remove.
+    """
     import json
     g = json.load(open(json_path))
     from three_arm.injectivity import summarize
     nb = {k: summarize(k)["nbar"] for k in g}
     rows = sorted(g, key=lambda k: (g[k]["d23"], g[k]["d13"]))
 
-    fig, ax = plt.subplots(figsize=(8.2, 6.4))
+    fig, ax = plt.subplots(figsize=(8.8, 6.6))
     ys = range(len(rows))
-    ax.barh([y + 0.2 for y in ys], [g[k]["d13"] for k in rows], 0.4,
-            color="0.6", label="Direct uses the wrong model shape")
-    ax.barh([y - 0.2 for y in ys], [g[k]["d23"] for k in rows], 0.4,
-            color=C_OBS, label="Direct is missing information")
+    ax.barh([y + 0.2 for y in ys], [g[k]["d13"] for k in rows], 0.4, color="0.6",
+            label="Direct assumes the wrong shape of function\n"
+                  "(cannot be fixed by $g$ being injective)")
+    ax.barh([y - 0.2 for y in ys], [g[k]["d23"] for k in rows], 0.4, color=C_OBS,
+            label="Direct never sees the intermediates $h$\n"
+                  "(vanishes exactly when $g$ is injective)")
     ax.set_yticks(list(ys))
-    nice = {"spr3s000": "$z^3$", "spr4s000": "$z^4$",
-            "spr5s000": "$z^5$", "spr6s000": "$z^6$"}
     ax.set_yticklabels(
-        [f"{nice.get(k, k)}   "
-         f"({'INJECTIVE' if nb[k] < 1.05 else f'{nb[k]:.1f} preimages'})"
+        [f"{_spr_label(k):16s} "
+         f"({'INJECTIVE' if nb[k] < 1.05 else f'{nb[k]:.1f} values of h fit each y'})"
          for k in rows], fontsize=7.5)
     for i, k in enumerate(rows):
         if nb[k] < 1.05:
-            ax.annotate("exactly 0", (0, i - 0.2), xytext=(4, -2),
-                        textcoords="offset points", fontsize=7,
+            ax.annotate("no bar: exactly zero", (0, i - 0.2), xytext=(4, -2),
+                        textcoords="offset points", fontsize=7.5,
                         color=C_OBS, va="center", style="italic")
-    ax.set_xlabel("how far Direct's prediction is from Composite's "
-                  "(Kolmogorov distance)")
-    ax.set_title("Bijectivity removes one of the two gaps, and not the big one",
-                 fontsize=10)
-    ax.legend(fontsize=8.5, loc="upper center", bbox_to_anchor=(0.5, -0.09),
+    ax.set_xlabel("how far Direct's prediction of the objective is from "
+                  "Composite's\n(Kolmogorov distance between the two posteriors; "
+                  "bigger = Direct is more wrong)")
+    ax.set_title("Being injective removes one of Direct's two handicaps, "
+                 "and not the larger one", fontsize=10.5)
+    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.16),
               ncol=2, frameon=False)
-    fig.tight_layout(); fig.savefig(path); plt.close(fig)
+    fig.tight_layout(); fig.savefig(path, bbox_inches="tight"); plt.close(fig)
+
+
+def fig_gain_grouped(json_path, path, n_show=40):
+    """Measured Composite advantage, with the maps pooled by injectivity.
+
+    This is the practical quantity -- how much better Composite predicts --
+    rather than the decomposition.  Pooling makes the comparison legible: if
+    injectivity drove the advantage, the left group would be near zero.
+    """
+    import json
+    blob = json.load(open(json_path))
+    kind, nbar = blob["kind"], blob["nbar"]
+    inj = lambda m: nbar[m] < 1.05
+
+    def gains(m):
+        o = blob["results"][m][str(n_show)]
+        return [x - y for x, y in zip(o["cd"], o["cc"])]
+
+    groups = [("$g$ injective\n(observing $h$ adds nothing)",
+               [m for m in nbar if inj(m)]),
+              ("$g$ not injective\n(observing $h$ adds information)",
+               [m for m in nbar if not inj(m)])]
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.6, 4.0),
+                                 gridspec_kw={"width_ratios": [1, 1.5]})
+    # pooled means with a 95% interval
+    import statistics as st, math
+    for i, (lab, ms) in enumerate(groups):
+        d = [v for m in ms for v in gains(m)]
+        mu = st.mean(d); se = st.stdev(d) / math.sqrt(len(d))
+        a1.bar(i, mu, 0.55, yerr=1.96 * se, capsize=5,
+               color=C_KNOW if i == 0 else C_BAD)
+        a1.annotate(f"{mu:.3f}", (i, mu), xytext=(0, 12), ha="center",
+                    textcoords="offset points", fontsize=9)
+    a1.set_xticks([0, 1]); a1.set_xticklabels([l for l, _ in groups], fontsize=8)
+    a1.set_ylabel("Composite's advantage over Direct\n(CRPS gain, higher = better)")
+    a1.set_title("pooled", fontsize=9.5)
+    a1.axhline(0, color="k", lw=0.8)
+
+    # per map, so the pooling is not hiding anything
+    allm = sorted(nbar, key=lambda m: st.mean(gains(m)))
+    xs = range(len(allm))
+    a2.bar(list(xs), [st.mean(gains(m)) for m in allm],
+           yerr=[1.96 * st.stdev(gains(m)) / math.sqrt(len(gains(m))) for m in allm],
+           capsize=2.5, color=[C_KNOW if inj(m) else C_BAD for m in allm])
+    a2.set_xticks(list(xs)); a2.set_xticklabels(allm, rotation=45, ha="right", fontsize=7.5)
+    a2.axhline(0, color="k", lw=0.8)
+    a2.set_title("per map, same colours", fontsize=9.5)
+    a2.scatter([], [], color=C_KNOW, marker="s", label="injective")
+    a2.scatter([], [], color=C_BAD, marker="s", label="not injective")
+    a2.legend(fontsize=8)
+    # Honest headline: the groups do differ, modestly, and the raw gap is
+    # inflated by a single map with an enormous interval.
+    import statistics as _st, math as _m
+    A = [v for m in nbar if inj(m) for v in gains(m)]
+    Ball = [v for m in nbar if not inj(m) for v in gains(m)]
+    Bno = [v for m in nbar if not inj(m) and m != "root5" for v in gains(m)]
+    def _d(x, y):
+        d = _st.mean(x) - _st.mean(y)
+        se = _m.sqrt(_st.variance(x) / len(x) + _st.variance(y) / len(y))
+        return d, 1.96 * se
+    d1, h1 = _d(Ball, A); d2, h2 = _d(Bno, A)
+    fig.suptitle("Composite wins on every map; non-injective maps gain "
+                 "modestly more", fontsize=10.5)
+    a1.annotate(f"difference {d1:+.3f}  [{d1-h1:+.3f}, {d1+h1:+.3f}]\n"
+                f"excluding root5: {d2:+.3f}  [{d2-h2:+.3f}, {d2+h2:+.3f}]",
+                xy=(0.5, -0.46), xycoords="axes fraction", ha="center",
+                fontsize=7.5, color="0.35", style="italic")
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    fig.savefig(path, bbox_inches="tight"); plt.close(fig)

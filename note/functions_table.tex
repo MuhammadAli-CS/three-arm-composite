@@ -1,0 +1,46 @@
+\section{The functions, written out}
+\label{sec:functions}
+
+Every map in the sweep is $g_s(z)=\prod_{i=1}^{m}(z-s\,a_i)$ with
+$a=\mathrm{linspace}(-2,2,m)$. The code \texttt{spr<m>s<100s>} records the
+degree $m$ and the spread $s$; at $s=0$ every root collapses to the origin and
+the map is simply $z^m$. The last column is the measured average number of $h$
+values consistent with one observation.
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llll r@{}}
+\toprule
+Code & Description & Roots & $g(z)$ & $\bar n$ \\
+\midrule
+\texttt{spr3s000} & degree 3, spread 0 & all at $0$ & $z^{3}$ & \textbf{1.00} \\
+\texttt{spr3s025} & degree 3, spread 0.25 & $-0.50,+0.00,+0.50$ & $z^{3} - 0.25z$ & 1.88 \\
+\texttt{spr3s050} & degree 3, spread 0.5 & $-1.00,+0.00,+1.00$ & $z^{3} - z$ & 2.51 \\
+\texttt{spr3s075} & degree 3, spread 0.75 & $-1.50,+0.00,+1.50$ & $z^{3} - 2.25z$ & 2.82 \\
+\texttt{spr3s100} & degree 3, spread 1 & $-2.00,+0.00,+2.00$ & $z^{3} - 4z$ & 2.96 \\
+\addlinespace
+\texttt{spr4s000} & degree 4, spread 0 & all at $0$ & $z^{4}$ & 2.00 \\
+\texttt{spr4s025} & degree 4, spread 0.25 & $-0.50,-0.17,+0.17,+0.50$ & $z^{4} - 0.278z^{2} + 0.00694$ & 2.81 \\
+\texttt{spr4s050} & degree 4, spread 0.5 & $-1.00,-0.33,+0.33,+1.00$ & $z^{4} - 1.11z^{2} + 0.111$ & 3.43 \\
+\texttt{spr4s075} & degree 4, spread 0.75 & $-1.50,-0.50,+0.50,+1.50$ & $z^{4} - 2.5z^{2} + 0.562$ & 3.75 \\
+\texttt{spr4s100} & degree 4, spread 1 & $-2.00,-0.67,+0.67,+2.00$ & $z^{4} - 4.44z^{2} + 1.78$ & 3.93 \\
+\addlinespace
+\texttt{spr5s000} & degree 5, spread 0 & all at $0$ & $z^{5}$ & \textbf{1.00} \\
+\texttt{spr5s025} & degree 5, spread 0.25 & $-0.50,-0.25,+0.00,+0.25,+0.50$ & $z^{5} - 0.312z^{3} + 0.0156z$ & 2.33 \\
+\texttt{spr5s050} & degree 5, spread 0.5 & $-1.00,-0.50,+0.00,+0.50,+1.00$ & $z^{5} - 1.25z^{3} + 0.25z$ & 3.39 \\
+\texttt{spr5s075} & degree 5, spread 0.75 & $-1.50,-0.75,+0.00,+0.75,+1.50$ & $z^{5} - 2.81z^{3} + 1.27z$ & 4.06 \\
+\texttt{spr5s100} & degree 5, spread 1 & $-2.00,-1.00,+0.00,+1.00,+2.00$ & $z^{5} - 5z^{3} + 4z$ & 4.50 \\
+\addlinespace
+\texttt{spr6s000} & degree 6, spread 0 & all at $0$ & $z^{6}$ & 2.00 \\
+\texttt{spr6s025} & degree 6, spread 0.25 & $-0.50,-0.30,-0.10,+0.10,+0.30,+0.50$ & $z^{6} - 0.35z^{4} + 0.0259z^{2} - 0.000225$ & 3.32 \\
+\texttt{spr6s050} & degree 6, spread 0.5 & $-1.00,-0.60,-0.20,+0.20,+0.60,+1.00$ & $z^{6} - 1.4z^{4} + 0.414z^{2} - 0.0144$ & 4.38 \\
+\texttt{spr6s075} & degree 6, spread 0.75 & $-1.50,-0.90,-0.30,+0.30,+0.90,+1.50$ & $z^{6} - 3.15z^{4} + 2.1z^{2} - 0.164$ & 5.10 \\
+\texttt{spr6s100} & degree 6, spread 1 & $-2.00,-1.20,-0.40,+0.40,+1.20,+2.00$ & $z^{6} - 5.6z^{4} + 6.63z^{2} - 0.922$ & 5.54 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Bold $\bar n$ marks the two injective members, $z^3$ and $z^5$.
+Even powers fold at the origin, so $z^4$ and $z^6$ are two-to-one and are not
+injective however the roots are placed.
