@@ -248,6 +248,32 @@ def _build_maps() -> Dict[str, OuterMap]:
                      linear_coef=[1.0] if m == 1 else None,
                      moves=[] if m == 1 else [_poly_swap(a)]))
 
+    # ----------------------------------------------------------------
+    # Root-spread sweep: the clean knob on injectivity.
+    #
+    # mono_m and root_m are the same polynomial with the roots in different
+    # places -- stacked at the origin, or spread out.  Sliding them together
+    # therefore varies injectivity CONTINUOUSLY while holding the degree, the
+    # leading coefficient and the tail behaviour fixed, which is exactly the
+    # confound the matched pairs could not break on their own.
+    #
+    #     g_s(z) = prod_i (z - s a_i),    a = linspace(-2, 2, m)
+    #
+    # s = 0 collapses every root to the origin, giving z^m: injective for odd
+    # m, and still two-to-one for even m, which is a property of even degree
+    # rather than of the roots.
+    for m in (2, 3, 4, 5, 6):
+        base = [-2.0 + 4.0 * i / (m - 1) for i in range(m)]
+        for s_ in (0.0, 0.25, 0.5, 0.75, 1.0):
+            a = [s_ * r for r in base]
+            injective = (s_ == 0.0 and m % 2 == 1)
+            add(OuterMap(f"spr{m}s{int(s_ * 100):03d}", 1, _poly(a),
+                         "invertible" if injective else "lossy",
+                         f"preimages at root spread {s_:g}",
+                         inverse=(lambda v, m=m: v.sign() * v.abs() ** (1.0 / m))
+                                 if injective else None,
+                         moves=[] if injective else [_poly_swap(a)]))
+
     # Matched injective partners: z^m is strictly increasing for odd m, so it
     # is nonlinear, same degree, and loses nothing.
     for m in (3, 5):
@@ -316,6 +342,9 @@ GROUPS: Dict[str, List[str]] = {
     # injective; root2..root5 are non-injective at matched degrees.
     "bijectivity": ["root1", "mono3", "mono5", "exp_b1", "sinh_b1",
                     "root2", "root3", "root4", "root5"],
+    # Degree held fixed, injectivity swept by sliding the roots together.
+    "spread": [f"spr{m}s{s:03d}" for m in (2, 3, 4, 5, 6)
+               for s in (0, 25, 50, 75, 100)],
 }
 
 

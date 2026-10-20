@@ -80,20 +80,39 @@ def one_fit(problem, n: int, seed: int, Xt: torch.Tensor, ft: torch.Tensor):
     )
 
 
+def run_one_draw(args):
+    """One (map, draw) unit.  Parallelising here rather than over maps keeps
+    every worker busy when there are fewer maps than cores."""
+    name, draw, ns, reps, d, n_test = args
+    torch.set_num_threads(1)
+    torch.set_default_dtype(DTYPE)
+    warnings.filterwarnings("ignore")
+    p = make_problem(name, d=d, lengthscale=0.5, draw_seed=draw)
+    Xt = SobolEngine(d, scramble=True, seed=9001 + draw).draw(n_test).to(DTYPE)
+    ft = p.f(Xt)
+    out = {n: {k: [] for k in ("cd", "cc", "rd", "rc", "ks")} for n in ns}
+    for n in ns:
+        for r in range(reps):
+            res = one_fit(p, n, 1000 * draw + r, Xt, ft)
+            out[n]["cd"].append(res["crps_direct"])
+            out[n]["cc"].append(res["crps_comp"])
+            out[n]["rd"].append(res["rmse_direct"])
+            out[n]["rc"].append(res["rmse_comp"])
+            out[n]["ks"].append(res["ks"])
+    return name, out
+
+
+def _merge(dest, src, ns):
+    for n in ns:
+        for k in src[n]:
+            dest[n][k].extend(src[n][k])
+
+
 def run_map(name, ns, draws, reps, d=6, n_test=512):
     out = {n: {k: [] for k in ("cd", "cc", "rd", "rc", "ks")} for n in ns}
     for draw in range(draws):
-        p = make_problem(name, d=d, lengthscale=0.5, draw_seed=draw)
-        Xt = SobolEngine(d, scramble=True, seed=9001 + draw).draw(n_test).to(DTYPE)
-        ft = p.f(Xt)
-        for n in ns:
-            for r in range(reps):
-                res = one_fit(p, n, 1000 * draw + r, Xt, ft)
-                out[n]["cd"].append(res["crps_direct"])
-                out[n]["cc"].append(res["crps_comp"])
-                out[n]["rd"].append(res["rmse_direct"])
-                out[n]["rc"].append(res["rmse_comp"])
-                out[n]["ks"].append(res["ks"])
+        _, part = run_one_draw((name, draw, ns, reps, d, n_test))
+        _merge(out, part, ns)
     return out
 
 
@@ -116,9 +135,16 @@ def main():
 
     if a.jobs > 1:
         import concurrent.futures as cf
-        with cf.ProcessPoolExecutor(max_workers=min(a.jobs, len(names))) as ex:
-            futs = {ex.submit(run_map, m, a.ns, a.draws, a.reps): m for m in names}
-            results = {futs[f]: f.result() for f in cf.as_completed(futs)}
+        units = [(m, d_, a.ns, a.reps, 6, 512) for m in names for d_ in range(a.draws)]
+        results = {m: {n: {k: [] for k in ("cd", "cc", "rd", "rc", "ks")}
+                       for n in a.ns} for m in names}
+        done = 0
+        with cf.ProcessPoolExecutor(max_workers=a.jobs) as ex:
+            for name, part in ex.map(run_one_draw, units):
+                _merge(results[name], part, a.ns)
+                done += 1
+                print(f"  {done}/{len(units)} units", end="\r", flush=True)
+        print(" " * 30, end="\r")
     else:
         results = {m: run_map(m, a.ns, a.draws, a.reps) for m in names}
 

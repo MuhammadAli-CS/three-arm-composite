@@ -1,0 +1,135 @@
+\section{How sure are we of each claim?}
+\label{sec:confidence}
+
+\paragraph{What was varied, and how much of it.}
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{1.7cm}p{3.6cm}p{3.5cm}p{2.2cm}p{2.3cm}@{}}
+\toprule
+Experiment & Random inputs varied & Replicates & Fixed & Metric \\
+\midrule
+Predictive
+ & 4 function draws $\times$ 8 designs
+ & 32 fits per map, per $n$
+ & $d=6$, $\ell=0.5$
+ & CRPS, RMSE \\
+ & $n \in \{5,10,20,40\}$ training pts
+ & $\times$ 4 sizes $\times$ 9 maps $=1152$
+ & 512 test pts
+ & \\
+\addlinespace
+Regret
+ & 4 function draws $\times$ 10 designs
+ & 40 BO runs per arm per map
+ & budget 40, $n_0=5$
+ & final $\log_{10}$ \\
+ & (confounded, see \S4)
+ & $\times$ 2 arms $\times$ 9 maps $=720$
+ & shared designs
+ & regret \\
+\addlinespace
+Injectivity $\bar n$
+ & ---
+ & 4000 probe points, 20001-pt grid
+ & draw 0
+ & count of preimages \\
+\addlinespace
+Exact posteriors
+ & --- (deterministic)
+ & no sampling anywhere
+ & $n=8$--12
+ & Kolmogorov dist.\ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent A ``function draw'' is a fresh random inner function $h$; a
+``design'' is a fresh set of training inputs. Varying both matters: with one
+draw, a conclusion could be a property of that single sampled $h$ and the
+error bars would never reveal it.
+
+\paragraph{Each claim, with its interval.} Intervals are 95\%; paired rows use
+a $t$ interval on the per-fit differences, so the pairing across the shared
+design is exploited.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{6.3cm}lll}
+\toprule
+Claim & Estimate & 95\% CI & Confidence \\
+\midrule
+\multicolumn{4}{l}{\emph{Proved, then confirmed numerically --- no sampling involved}}\\
+Bijective $g$: Models 2 and 3 coincide
+ & $0.000000$ & exact & \textbf{certain} \\
+Linear $g$: Models 1 and 3 coincide
+ & $0.000000$ & exact & \textbf{certain} \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Strong: large $t$, every replicate agrees}}\\
+Composite predicts better than Direct on \emph{every} map
+ & --- & --- & \textbf{strong} (9/9 maps, $t\ge3.6$) \\
+\quad e.g.\ \texttt{root2}, 32 fits, 32/32 wins
+ & $+0.0263$ & $[+0.0229,+0.0298]$ & $t=15.6$ \\
+Bijective maps still gain (so the gain is not only information)
+ & $+0.0189$ & $[+0.0143,+0.0234]$ & $t=8.5$ (\texttt{mono3}) \\
+The linear map gains least, at every $n$
+ & $+0.0050$ & $[+0.0035,+0.0066]$ & \textbf{strong} (4/4 sizes) \\
+Gain does not shrink as $n$ grows $5\to40$
+ & --- & --- & \textbf{strong} (all 9 maps) \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Unresolved: the interval is too wide to call}}\\
+Degree-3 matched pair: effect of bijectivity
+ & $+0.0033$ & $[-0.0057,+0.0123]$ & $t=0.72$ \ \textbf{null} \\
+Degree-5 matched pair: effect of bijectivity
+ & $+0.0767$ & $[-0.0584,+0.2118]$ & $t=1.11$ \ \textbf{null} \\
+Across maps, gain correlates with $\bar n$
+ & $r=+0.78$ & $[+0.25,+0.95]$ & \textbf{fragile} (see below) \\
+\texttt{root5}'s gain
+ & $+0.1133$ & $[-0.0258,+0.2525]$ & $t=1.7$ \ \textbf{unreliable} \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Confounded by construction --- reported, not relied on}}\\
+Regret gain, \texttt{root1} (linear), 40 runs
+ & $+0.260$ & $[-0.107,+0.628]$ & n.s. \\
+Regret gain, \texttt{root3}, 40 runs
+ & $+0.808$ & $[+0.411,+1.205]$ & see \S4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Why the correlation is called fragile.} It rests on one point.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+Subset & Pearson $r$ & 95\% CI & Spearman \\
+\midrule
+All 9 maps & $+0.783$ & $[+0.247,+0.952]$ & $+0.700$ \\
+Dropping \texttt{root5} (whose own CI spans zero) & $+0.558$ & $[-0.242,+0.906]$ & $+0.571$ \\
+Polynomials only & $+0.766$ & $[+0.030,+0.963]$ & $+0.857$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Removing a single map moves the interval across zero. And $\bar n$
+is itself correlated with degree ($r=+0.48$ across the seven polynomials), so
+with nine maps the two cannot be separated. Most tellingly: \textbf{among the
+five maps with $\bar n=1.00$ exactly, the gain still spans a factor of
+$7.3$} ($0.0050$ to $0.0367$). Injectivity held perfectly fixed, something
+else moves the gain sevenfold.
+
+\paragraph{What the null results could and could not have seen.} The degree-3
+interval has half-width $0.0090$ against a gain of about $0.020$, so it would
+only have detected a bijectivity effect larger than roughly \textbf{45\% of
+the gain itself}. The observed $17\%$ difference is well inside the noise.
+Resolving it needs the standard error down by $2.7\times$, which is
+$\mathbf{\sim\!240}$ \textbf{fits per map} instead of 32 --- about eight times
+the compute, and still only two matched pairs.
+
+\paragraph{The honest summary.} We can say with confidence that the gain is
+real everywhere, that it is smallest for the linear map, that it survives on
+bijective maps, and that it does not wash out with data. We \emph{cannot}
+currently say whether bijectivity has a modest secondary effect: the
+controlled comparison is null but underpowered, and the across-map correlation
+is positive but fragile and confounded with degree.

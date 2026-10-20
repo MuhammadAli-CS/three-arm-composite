@@ -99,15 +99,19 @@ Thirty-two fits per map per sample size, at $n=5,10,20,40$.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.92\linewidth]{../figures/result_simple.pdf}
-\caption{Composite predicts better than Direct everywhere. But the blue
-(bijective) and red (non-bijective) bars are completely interleaved --- knowing
-whether $g$ is bijective does not tell you how big the gain will be.}
+\caption{Composite predicts better than Direct everywhere. The blue
+(bijective) and red (non-bijective) bars are interleaved: 	exttt{mono5} and
+	exttt{exp\_b1} are bijective yet outrank three maps that are not. There is a
+positive across-map association (Section~ef{sec:confidence}), but it is not
+robust and it is confounded with degree.}
 \end{figure}
 
 Two things stand out.
 
-\paragraph{The matched pairs show no effect.} This is the comparison the whole
-design was built for: same degree, same steepness, opposite bijectivity.
+\paragraph{The matched pairs show no detectable effect.} This is the
+comparison the whole design was built for: same degree, same steepness,
+opposite bijectivity. Note ``detectable'' --- the interval is wide, and
+Section~ef{sec:confidence} quantifies what it could and could not have seen.
 
 \begin{center}
 \begin{tabular}{llll}
@@ -154,6 +158,8 @@ Composite sees information $y$ lacks & $g$ being \emph{bijective} & too small to
 \noindent Linearity kills both, which is why \texttt{root1} is lowest, and why
 Truss and power flow --- both linear --- show the smallest gains in the paper.
 Bijectivity kills only the second, which is why the bijective maps still gain.
+
+\input{confidence.tex}
 
 \paragraph{One sentence in the paper should be adjusted.} ``Even a nonlinear
 composition adds no information advantage when it is invertible'' is correct
