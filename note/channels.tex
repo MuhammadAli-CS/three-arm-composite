@@ -28,7 +28,7 @@ distance between them is information alone. The two channels are separated by
 construction rather than by hoping two functions are comparable.
 
 For a finite-fiber $g$ all three are computable exactly by enumerating
-plausible histories (Section~\ref{sec:results}), so this needs no sampler, no
+plausible histories (Section~\ref{sec:exactposteriors}), so this needs no sampler, no
 fitting and no replicates.
 
 \paragraph{Result.} Across the root-spread family, at $n=8$ observed points and
@@ -59,6 +59,18 @@ Map & $\bar n$ & $\sup|M_2-M_3|$ & $\sup|M_1-M_3|$ & $I(y;h)$ bits \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.86\linewidth]{../figures/channels_simple.pdf}
+\caption{The whole result. Grey is how far Direct's prediction sits from
+Composite's because it is fitting the wrong shape of model; orange is how far
+because it is missing information. The two injective maps have no orange bar
+at all --- exactly zero, as the proposition requires --- and their grey bar is
+as long as anyone's.}
+\label{fig:channels}
+\end{figure}
 
 \paragraph{Bijectivity controls the information channel exactly.} It is
 $0.0000$ for $z^3$ and $z^5$, the two injective members, and non-zero

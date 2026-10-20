@@ -625,3 +625,40 @@ def fig_channels(json_path, path):
                  fontsize=9.5)
     a2.legend(fontsize=8)
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
+
+
+def fig_channels_simple(json_path, path):
+    """The same result as fig_channels, in the plainest form: one row per map,
+    two bars, sorted.  The information bars for the injective maps are exactly
+    zero and so have no visible bar at all, which is the point."""
+    import json
+    g = json.load(open(json_path))
+    from three_arm.injectivity import summarize
+    nb = {k: summarize(k)["nbar"] for k in g}
+    rows = sorted(g, key=lambda k: (g[k]["d23"], g[k]["d13"]))
+
+    fig, ax = plt.subplots(figsize=(8.2, 6.4))
+    ys = range(len(rows))
+    ax.barh([y + 0.2 for y in ys], [g[k]["d13"] for k in rows], 0.4,
+            color="0.6", label="Direct uses the wrong model shape")
+    ax.barh([y - 0.2 for y in ys], [g[k]["d23"] for k in rows], 0.4,
+            color=C_OBS, label="Direct is missing information")
+    ax.set_yticks(list(ys))
+    nice = {"spr3s000": "$z^3$", "spr4s000": "$z^4$",
+            "spr5s000": "$z^5$", "spr6s000": "$z^6$"}
+    ax.set_yticklabels(
+        [f"{nice.get(k, k)}   "
+         f"({'INJECTIVE' if nb[k] < 1.05 else f'{nb[k]:.1f} preimages'})"
+         for k in rows], fontsize=7.5)
+    for i, k in enumerate(rows):
+        if nb[k] < 1.05:
+            ax.annotate("exactly 0", (0, i - 0.2), xytext=(4, -2),
+                        textcoords="offset points", fontsize=7,
+                        color=C_OBS, va="center", style="italic")
+    ax.set_xlabel("how far Direct's prediction is from Composite's "
+                  "(Kolmogorov distance)")
+    ax.set_title("Bijectivity removes one of the two gaps, and not the big one",
+                 fontsize=10)
+    ax.legend(fontsize=8.5, loc="upper center", bbox_to_anchor=(0.5, -0.09),
+              ncol=2, frameon=False)
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)
