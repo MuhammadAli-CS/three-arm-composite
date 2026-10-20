@@ -51,6 +51,21 @@ REACH = 8.0          # h is standardized; beyond 8 the prior carries ~1e-9
 # --------------------------------------------------------------------------
 # Fibers: g^{-1}(v) in *raw* units, before the problem's affine normalization
 # --------------------------------------------------------------------------
+def _poly_roots(map_name: str):
+    """The roots defining each polynomial map, mirroring test_functions."""
+    import numpy as np
+    if map_name.startswith("mono"):
+        m = int(map_name[4:]); return [0.0] * m
+    if map_name.startswith("root"):
+        return {1: [0.0], 2: [-1.0, 1.0], 3: [-1.5, 0.0, 1.5],
+                4: [-1.5, -0.5, 0.5, 1.5],
+                5: [-2.0, -1.0, 0.0, 1.0, 2.0]}[int(map_name[4:])]
+    if map_name.startswith("spr"):
+        m = int(map_name[3]); s_ = int(map_name[5:]) / 100.0
+        return list(np.linspace(-2.0, 2.0, m) * s_)
+    raise ValueError(map_name)
+
+
 def fiber(map_name: str, v: float, reach: float = 8.0):
     """Every h with outer.fn(h) == v, for the finite-fiber maps."""
     if map_name == "identity":
@@ -69,6 +84,19 @@ def fiber(map_name: str, v: float, reach: float = 8.0):
         return [c] if r == 0.0 else [c + r, c - r]
     if map_name == "abs":
         return [] if v < 0 else ([0.0] if v == 0 else [v, -v])
+    if map_name.startswith(("root", "mono", "spr")):
+        import numpy as np
+        coef = np.poly(np.array(_poly_roots(map_name), dtype=float))
+        shifted = coef.copy(); shifted[-1] -= v
+        rts = np.roots(shifted)
+        out = sorted(float(r.real) for r in rts
+                     if abs(r.imag) < 1e-7 and abs(r.real) <= reach)
+        # collapse numerically coincident roots: a repeated root is one point
+        uniq = []
+        for r in out:
+            if not uniq or abs(r - uniq[-1]) > 1e-6:
+                uniq.append(r)
+        return uniq
     if map_name.startswith("cos_w"):
         w = float(map_name[5:])
         if abs(v) > 1.0:
@@ -100,6 +128,10 @@ def dg(map_name: str, z: float) -> float:
         c = float(map_name[9:]); return abs(2.0 * (z - c))
     if map_name == "abs":
         return 1.0
+    if map_name.startswith(("root", "mono", "spr")):
+        import numpy as np
+        coef = np.poly(np.array(_poly_roots(map_name), dtype=float))
+        return abs(float(np.polyval(np.polyder(coef), z)))
     if map_name.startswith("cos_w"):
         w = float(map_name[5:]); return abs(w * math.sin(w * z))
     raise ValueError(map_name)

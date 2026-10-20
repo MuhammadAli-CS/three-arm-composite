@@ -165,6 +165,8 @@ Bijectivity kills only the second, which is why the bijective maps still gain.
 
 \input{inseparable.tex}
 
+\input{channels.tex}
+
 \input{confidence.tex}
 
 \paragraph{One sentence in the paper should be adjusted.} ``Even a nonlinear
@@ -175,11 +177,24 @@ predicts the gain better than whether it is invertible.
 
 \section{What would settle it}
 
-Separating the two sources needs a third model: one that holds the correct
-prior on $h$ but sees only $y$. Comparing that against Composite isolates the
-information channel with the misspecification held fixed, which is the only
-place bijectivity can show up cleanly. That is the three-arm setup, and this
-experiment is an argument for running it rather than a replacement.
+Section~ef{sec:channels} settles it for every $g$ whose fibers are finite:
+Model 3 is the third arm, and enumerating plausible histories computes it
+exactly, so the two channels are separated without a sampler and without
+replicates. Three things remain open.
+
+egin{enumerate}\itemsep1pt
+\item 	extbf{Maps with infinite fibers.} 	exttt{relu}, the clipped pair and
+the two-dimensional analogues cannot be enumerated, and for those Model 3 has
+to be sampled rather than computed.
+\item 	extbf{Whether the split survives optimisation.} The decomposition is
+of posteriors at a fixed design. Whether a 3:1 ratio between the channels
+translates into the same ratio in final regret after forty adaptive
+evaluations is a separate question.
+\item 	extbf{Several intermediates.} Everything here is $k=1$. With $k\ge2$
+a map can destroy information without folding, which is the only way to vary
+the information channel while holding model difficulty fixed \emph{in a
+fitted comparison} rather than an exact one.
+\end{enumerate}
 
 \section*{Caveats}
 

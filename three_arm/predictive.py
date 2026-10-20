@@ -139,11 +139,7 @@ def main():
         results = {m: {n: {k: [] for k in ("cd", "cc", "rd", "rc", "ks")}
                        for n in a.ns} for m in names}
         done = 0
-        # Workers are recycled every few units: a long-lived worker grows
-        # to well over 2 GB across repeated GP fits, and sixteen of those
-        # exhaust memory and break the pool.
-        with cf.ProcessPoolExecutor(max_workers=a.jobs,
-                                    max_tasks_per_child=6) as ex:
+        with cf.ProcessPoolExecutor(max_workers=a.jobs) as ex:
             for name, part in ex.map(run_one_draw, units):
                 _merge(results[name], part, a.ns)
                 done += 1

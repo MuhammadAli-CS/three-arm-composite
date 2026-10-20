@@ -571,3 +571,57 @@ def fig_result_simple(json_path, path, n_show=40):
     ax.scatter([], [], color=C_BAD, marker="s", label="non-injective")
     ax.legend(fontsize=8, loc="lower right")
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
+
+
+def fig_channels(json_path, path):
+    """The two channels of the Composite advantage, computed exactly.
+
+    Model 1 and Model 3 both condition only on y and differ solely in the
+    model, so sup|M1 - M3| is misspecification alone.  Model 2 and Model 3
+    share the prior on h and differ solely in what is observed, so
+    sup|M2 - M3| is information alone.  No sampling, no fitting, no confound
+    between them -- which is what the two-arm comparison could never achieve.
+    """
+    import json
+    g = json.load(open(json_path))
+    degs = sorted({v["m"] for v in g.values()})
+    cols = {3: "#4878a8", 4: "#d08838", 5: "#5aa469", 6: "#b03030"}
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(10.0, 3.9))
+
+    # --- information against measured injectivity -----------------------
+    from three_arm.injectivity import summarize
+    for d in degs:
+        ms = sorted((k for k, v in g.items() if v["m"] == d),
+                    key=lambda k: g[k]["s"])
+        xs = [summarize(k)["nbar"] for k in ms]
+        ys = [g[k]["d23"] for k in ms]
+        a1.plot(xs, ys, marker="o", ms=5, color=cols[d], label=f"degree {d}")
+        if abs(ys[0]) < 1e-9:                      # mark the exact zeros
+            a1.scatter([xs[0]], [ys[0]], s=130, facecolors="none",
+                       edgecolors=cols[d], lw=1.6, zorder=5)
+    a1.axhline(0, color="k", lw=0.8)
+    a1.set_xlabel(r"$\bar n = \mathbb{E}\,|g^{-1}(y)|$")
+    a1.set_ylabel(r"information:  $\sup|M_2-M_3|$")
+    a1.set_title("zero exactly when $g$ is injective", fontsize=9.5)
+    a1.annotate("circled points are\n$z^3$ and $z^5$: injective,\nand exactly 0",
+                xy=(0.30, 0.86), xycoords="axes fraction", fontsize=7.5,
+                color="0.35", style="italic", va="top")
+    a1.legend(fontsize=8)
+
+    # --- the two channels side by side ----------------------------------
+    ms = sorted(g, key=lambda k: (g[k]["m"], g[k]["s"]))
+    xs = range(len(ms))
+    a2.bar([x - 0.2 for x in xs], [g[k]["d13"] for k in ms], 0.4,
+           color="0.55", label=r"misspecification  $\sup|M_1-M_3|$")
+    a2.bar([x + 0.2 for x in xs], [g[k]["d23"] for k in ms], 0.4,
+           color=C_OBS, label=r"information  $\sup|M_2-M_3|$")
+    a2.set_xticks(list(xs))
+    a2.set_xticklabels([f"{g[k]['m']}/{g[k]['s']:g}" for k in ms],
+                       rotation=90, fontsize=6.5)
+    a2.set_xlabel("degree / root spread $s$")
+    a2.set_ylabel("Kolmogorov distance")
+    a2.set_title("misspecification dominates, and ignores injectivity",
+                 fontsize=9.5)
+    a2.legend(fontsize=8)
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)
