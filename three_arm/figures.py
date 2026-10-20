@@ -448,3 +448,126 @@ def fig_bijectivity(json_path, path, n_show=40):
     a3.set_title("the advantage does not wash out with data", fontsize=9)
 
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
+
+
+def fig_gallery(path, maps=None, draw_seed=0, d=6):
+    """What every outer map in the bijectivity family actually looks like.
+
+    One panel per g, drawn over the range of h the problem actually reaches,
+    with a horizontal cut at a typical observed value.  The dots are the h
+    values consistent with that observation -- which is the whole notion of
+    injectivity, made visible: one dot means y tells you h, several means it
+    does not.
+    """
+    import torch
+    from torch.quasirandom import SobolEngine
+    from three_arm.test_functions import DTYPE, GROUPS, make_problem
+    from three_arm.injectivity import summarize
+    torch.set_default_dtype(DTYPE)
+    maps = maps or GROUPS["bijectivity"]
+
+    fig, axes = plt.subplots(3, 3, figsize=(9.4, 7.2))
+    for ax, name in zip(axes.ravel(), maps):
+        p = make_problem(name, d=d, lengthscale=0.5, draw_seed=draw_seed)
+        X = SobolEngine(d, scramble=True, seed=404).draw(3000).to(DTYPE)
+        h = p.h(X)[:, 0]
+        lo, hi = float(h.min()), float(h.max())
+        z = torch.linspace(lo, hi, 2000, dtype=DTYPE)
+        gz = p.g(z.unsqueeze(-1))                       # normalized, as the arms see it
+
+        ax.plot(z, gz, color=C_KNOW, lw=1.8)
+        # a representative observation, cut across the curve
+        y0 = float(torch.quantile(p.g(h.unsqueeze(-1)), 0.35))
+        ax.axhline(y0, color=C_BAD, lw=1.0, ls="--")
+        d_ = (gz - y0).numpy()
+        cross = [i for i in range(len(d_) - 1) if (d_[i] <= 0) != (d_[i + 1] <= 0)]
+        ax.scatter([float(z[i]) for i in cross], [y0] * len(cross),
+                   s=42, color=C_BAD, zorder=4)
+
+        nb = summarize(name, d=d, draw_seed=draw_seed)["nbar"]
+        tag = "injective" if nb < 1.05 else f"{nb:.1f} preimages on average"
+        ax.set_title(f"{name}   —   {tag}", fontsize=9)
+        ax.set_xlabel("$h$", fontsize=8); ax.set_ylabel("$y = g(h)$", fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.text(0.03, 0.95, f"{len(cross)} here", transform=ax.transAxes,
+                fontsize=7.5, va="top", color=C_BAD)
+    fig.suptitle("The outer maps, over the range $h$ actually reaches.  "
+                 "Dashed line = one observed $y$;  dots = the $h$ values that could have produced it.",
+                 fontsize=9.5, y=0.995)
+    fig.tight_layout(rect=(0, 0, 1, 0.975))
+    fig.savefig(path); plt.close(fig)
+
+
+def fig_why_regret_fails(path, draw_seed=0, d=6):
+    """Injectivity decides where the optimum can be, so regret cannot be fair.
+
+    A monotone g attains its minimum at an endpoint of the reachable range of
+    h; a non-injective one can attain it in the interior.  The two classes are
+    therefore solving different kinds of optimization problem, and no choice
+    of roots repairs that.
+    """
+    import torch
+    from torch.quasirandom import SobolEngine
+    from three_arm.test_functions import DTYPE, make_problem
+    torch.set_default_dtype(DTYPE)
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.2))
+    for ax, (name, label) in zip(axes, [("mono3", "injective  ($z^3$)"),
+                                        ("root2", "non-injective  $(z{+}1)(z{-}1)$")]):
+        p = make_problem(name, d=d, lengthscale=0.5, draw_seed=draw_seed)
+        X = SobolEngine(d, scramble=True, seed=404).draw(3000).to(DTYPE)
+        h = p.h(X)[:, 0]
+        lo, hi = float(h.min()), float(h.max())
+        z = torch.linspace(lo, hi, 1500, dtype=DTYPE)
+        gz = p.g(z.unsqueeze(-1))
+        ax.plot(z, gz, color=C_KNOW, lw=1.8)
+        i = int(gz.argmin())
+        ax.scatter([float(z[i])], [float(gz[i])], s=70, color=C_BAD, zorder=4)
+        at_edge = i < 20 or i > len(z) - 20
+        ax.annotate("minimum at the EDGE\nof the reachable range" if at_edge
+                    else "minimum in the INTERIOR",
+                    (float(z[i]), float(gz[i])),
+                    xytext=(46 if at_edge else 0, 34),
+                    textcoords="offset points",
+                    ha="left" if at_edge else "center", fontsize=8,
+                    color=C_BAD, arrowprops=dict(arrowstyle="->", color=C_BAD, lw=1.0))
+        ax.axvspan(lo, lo + 0.03 * (hi - lo), color="0.85", zorder=0)
+        ax.axvspan(hi - 0.03 * (hi - lo), hi, color="0.85", zorder=0)
+        ax.set_title(label, fontsize=9)
+        ax.set_xlabel("$h$"); ax.set_ylabel("$y = g(h)$")
+    fig.suptitle("A monotone $g$ can only be minimised at an endpoint. "
+                 "So injectivity decides what the optimisation problem is.",
+                 fontsize=9.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.93)); fig.savefig(path); plt.close(fig)
+
+
+def fig_result_simple(json_path, path, n_show=40):
+    """The result as one sorted bar chart: who gains, grouped by injectivity."""
+    import json
+    blob = json.load(open(json_path))
+    nbar, kind = blob["nbar"], blob["kind"]
+    inj = lambda m: kind[m] in ("identity", "invertible", "linear")
+
+    def gain(m):
+        o = blob["results"][m][str(n_show)]
+        d = [x - y for x, y in zip(o["cd"], o["cc"])]
+        mu = sum(d) / len(d)
+        se = (sum((x - mu) ** 2 for x in d) / (len(d) - 1) / len(d)) ** 0.5
+        return mu, se
+
+    rows = sorted(nbar, key=lambda m: gain(m)[0])
+    fig, ax = plt.subplots(figsize=(7.6, 4.0))
+    ys = range(len(rows))
+    ax.barh(list(ys), [gain(m)[0] for m in rows],
+            xerr=[gain(m)[1] for m in rows], capsize=3,
+            color=[C_KNOW if inj(m) else C_BAD for m in rows])
+    ax.set_yticks(list(ys))
+    ax.set_yticklabels([f"{m}   ({'injective' if inj(m) else f'{nbar[m]:.1f} preimages'})"
+                        for m in rows], fontsize=8)
+    ax.set_xlabel("how much better Composite predicts than Direct   (CRPS gain)")
+    ax.set_title("Composite always wins. Injectivity does not say by how much.",
+                 fontsize=10)
+    ax.barh([], []); ax.scatter([], [], color=C_KNOW, marker="s", label="injective")
+    ax.scatter([], [], color=C_BAD, marker="s", label="non-injective")
+    ax.legend(fontsize=8, loc="lower right")
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)

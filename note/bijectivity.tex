@@ -1,0 +1,184 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\title{\bfseries Does bijectivity of $g$ decide the Composite gain?\\[2pt]
+\large A short report on one experiment}
+\date{}
+\author{}
+
+\begin{document}
+\maketitle
+\vspace{-2.5em}
+
+\section*{The question in four sentences}
+
+Our benchmarks show Composite beating Direct by very different amounts, and we
+want to know what separates the cases. The proposition says that if $g$ is
+\emph{bijective}, observing the intermediates $h$ tells you nothing you did not
+already learn from the objective $y$. So a natural guess is: \textbf{Composite
+helps when $g$ is not bijective, and not otherwise.} This note tests that
+guess, and the answer is \textbf{no --- bijectivity is not what decides it}.
+
+\section{What we built}
+
+A family of outer maps that are all the same shape of thing --- products of
+linear factors --- so that we can turn one property at a time:
+\[
+g_m(z)=\prod_{i=1}^{m}(z-a_i), \qquad m=1,\dots,5,
+\]
+with the roots $a_i$ spread across the range that $h$ actually visits. Against
+each of these we put a map of the \emph{same polynomial degree} that is
+bijective: $z^3$ and $z^5$ are strictly increasing, so they are just as
+nonlinear and just as steep, but nothing is lost. Plus $e^z$ and $\sinh z$ as
+two more bijective references.
+
+That matched pairing is the point. A degree-5 polynomial is both more
+non-bijective \emph{and} a wilder function; if we only varied $m$ we could
+never say which mattered.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/gallery.pdf}
+\caption{Every map in the family. The dashed line is one observed value of
+$y$; the dots are the values of $h$ that could have produced it. One dot means
+$y$ tells you $h$ exactly --- that is what bijective means. Several dots mean
+it does not.}
+\end{figure}
+
+\section{Measuring how non-bijective each one is}
+
+Rather than assume it from the degree, we count it. For each map, over the
+values of $y$ the problem actually produces,
+\[
+\bar n=\mathbb{E}\,\bigl|g^{-1}(y)\bigr|
+=\text{average number of $h$ values consistent with one observation.}
+\]
+$\bar n=1$ means bijective where it matters. The five bijective maps all come
+out at exactly $1.00$; the others at $2.00$, $2.82$, $3.75$ and $4.50$. So the
+knob works, and it is measured rather than asserted.
+
+\section{Why we stopped measuring optimisation}
+
+We first compared the two models by how well they optimise. That turned out to
+be the wrong instrument, for a reason that cannot be fixed by choosing better
+roots:
+
+\begin{quote}
+\textbf{A bijective $g$ is monotone. A monotone function attains its minimum at
+an endpoint.}
+\end{quote}
+
+So a bijective map always puts the optimum at the edge of the reachable range,
+and a non-bijective one can put it in the middle. Bijectivity decides
+\emph{what the optimisation problem is}, which means any comparison of
+optimisation performance between the two classes is confounded before it
+starts.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\linewidth]{../figures/why_regret_fails.pdf}
+\caption{The same point, drawn. Grey bands mark the edges of the range $h$
+reaches.}
+\end{figure}
+
+\section{What we measured instead}
+
+Prediction, with no optimiser anywhere. Both models are fitted to the same $n$
+observations and then asked to predict $f$ at $512$ held-out points. We score
+the whole predictive distribution with CRPS, a proper scoring rule, so a model
+is rewarded for honest uncertainty and not only for a good central guess.
+Thirty-two fits per map per sample size, at $n=5,10,20,40$.
+
+\section{The result}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\linewidth]{../figures/result_simple.pdf}
+\caption{Composite predicts better than Direct everywhere. But the blue
+(bijective) and red (non-bijective) bars are completely interleaved --- knowing
+whether $g$ is bijective does not tell you how big the gain will be.}
+\end{figure}
+
+Two things stand out.
+
+\paragraph{The matched pairs show no effect.} This is the comparison the whole
+design was built for: same degree, same steepness, opposite bijectivity.
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Degree & Bijective & Non-bijective & Difference \\
+\midrule
+3 & \texttt{mono3}\ \ $+0.0189\pm0.0022$ & \texttt{root3}\ \ $+0.0221\pm0.0040$ & $+0.003\pm0.005$ \ (0.7 SE) \\
+5 & \texttt{mono5}\ \ $+0.0367\pm0.0098$ & \texttt{root5}\ \ $+0.1133\pm0.0682$ & $+0.077\pm0.069$ \ (1.1 SE) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Neither difference is distinguishable from zero.
+
+\paragraph{The linear map is the real special case.} \texttt{root1} has the
+smallest gain at every single sample size, four to twenty times below
+everything else.
+
+\section{What this means}
+
+\paragraph{Bijectivity does control information --- that part is proven.} If
+$g$ is bijective, observing $h$ adds exactly nothing; we also confirmed it
+numerically to six decimal places. That is not in question.
+
+\paragraph{But information is not what the gain is made of.} Composite still
+beats Direct on bijective maps, by a margin several standard errors from zero.
+The reason is that Direct is fitting the \emph{wrong kind of model}: when $g$
+is nonlinear, $f=g(h)$ is not a Gaussian process at all, so a GP placed
+directly on $f$ is misspecified. Composite's model is correct by construction.
+Bijectivity removes the information advantage and leaves this one untouched.
+
+\paragraph{So the gain has two sources, and we measured their sum.}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Source of the gain & Removed by & Size here \\
+\midrule
+Direct is fitting the wrong model & $g$ being \emph{linear} & the large part \\
+Composite sees information $y$ lacks & $g$ being \emph{bijective} & too small to detect \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Linearity kills both, which is why \texttt{root1} is lowest, and why
+Truss and power flow --- both linear --- show the smallest gains in the paper.
+Bijectivity kills only the second, which is why the bijective maps still gain.
+
+\paragraph{One sentence in the paper should be adjusted.} ``Even a nonlinear
+composition adds no information advantage when it is invertible'' is correct
+about \emph{information}, but it reads as a prediction that invertible maps
+will show no gain. They do show one. On this evidence, how nonlinear $g$ is
+predicts the gain better than whether it is invertible.
+
+\section{What would settle it}
+
+Separating the two sources needs a third model: one that holds the correct
+prior on $h$ but sees only $y$. Comparing that against Composite isolates the
+information channel with the misspecification held fixed, which is the only
+place bijectivity can show up cleanly. That is the three-arm setup, and this
+experiment is an argument for running it rather than a replacement.
+
+\section*{Caveats}
+
+\begin{itemize}\itemsep1pt
+\item One function family, $d=6$, single objective, noiseless. The paper's
+hypervolume benchmarks are none of those things.
+\item \texttt{root5}'s error bar is enormous ($\pm0.068$ on $+0.113$); a few
+outlier fits dominate it. The degree-3 pair is the trustworthy comparison.
+\item $\bar n$ counts branches without weighting them by how plausible they
+are, so a map with a technically reachable but very unlikely second branch
+looks more ambiguous than it behaves.
+\end{itemize}
+
+\end{document}
