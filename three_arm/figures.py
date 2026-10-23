@@ -815,3 +815,54 @@ def fig_mobo(json_main, json_sinh, path):
                  fontsize=10.5)
     fig.tight_layout(rect=(0, 0.03, 1, 0.93))
     fig.savefig(path, bbox_inches="tight"); plt.close(fig)
+
+
+def fig_bo_curves(results_dir, path, arms=("direct", "composite", "latent"),
+                  ncols=5):
+    """Convergence per problem: log10 simple regret against evaluation.
+
+    Regret rather than the raw best value, for three reasons.  f_min differs
+    between function draws, so a single horizontal "optimum" line cannot be
+    drawn against curves pooled over draws.  The maps span very different
+    scales.  And every analysis in this note is on log regret, so the curves
+    and the tables then describe the same quantity.
+    """
+    import glob, json, os, collections, math
+    runs = collections.defaultdict(lambda: collections.defaultdict(list))
+    for p in sorted(glob.glob(os.path.join(results_dir, "*.json"))):
+        blob = json.load(open(p))
+        fm = blob["f_min"]
+        for arm, rs in blob["results"].items():
+            runs[blob["map"]][arm] += [
+                [math.log10(max(v - fm, 1e-8)) for v in r["best"]] for r in rs]
+
+    order = [m for m in OUTER_MAPS if m in runs]
+    nrows = (len(order) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(2.5 * ncols, 2.15 * nrows),
+                             squeeze=False)
+    colours = {"direct": "0.45", "composite": C_KNOW, "latent": C_OBS}
+    for ax, name in zip(axes.ravel(), order):
+        for arm in arms:
+            if arm not in runs[name]:
+                continue
+            tr = runs[name][arm]
+            n = min(len(t) for t in tr)
+            cols = [[t[i] for t in tr] for i in range(n)]
+            med = [sorted(c)[len(c) // 2] for c in cols]
+            lo = [sorted(c)[len(c) // 4] for c in cols]
+            hi = [sorted(c)[3 * len(c) // 4] for c in cols]
+            ax.plot(med, color=colours.get(arm, "k"), lw=1.4, label=arm)
+            ax.fill_between(range(n), lo, hi, color=colours.get(arm, "k"), alpha=0.13)
+        ax.set_title(name, fontsize=8.5)
+        ax.tick_params(labelsize=6.5)
+    for ax in axes.ravel()[len(order):]:
+        ax.axis("off")
+    axes[0][0].legend(fontsize=7)
+    for ax in axes[-1]:
+        ax.set_xlabel("evaluation", fontsize=7.5)
+    for row in axes:
+        row[0].set_ylabel("$\log_{10}$ regret", fontsize=7.5)
+    fig.suptitle("Convergence per problem: median $\log_{10}$ simple regret "
+                 "with the interquartile band, lower is better", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.965))
+    fig.savefig(path); plt.close(fig)

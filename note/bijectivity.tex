@@ -70,6 +70,20 @@ $\bar n=1$ means bijective where it matters. The five bijective maps all come
 out at exactly $1.00$; the others at $2.00$, $2.82$, $3.75$ and $4.50$. So the
 knob works, and it is measured rather than asserted.
 
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/bo_curves.pdf}
+\caption{Convergence on every single-objective problem: median
+$\log_{10}$ simple regret against evaluation, with the interquartile band.
+Regret rather than the raw best value, because $f_{\min}$ differs between
+function draws and the maps span very different scales. The three arms are
+the direct GP, the composite model, and the composite prior conditioned on
+the objective alone. A floor at $-8$ is the clamp in the metric, reached when
+a run finds the optimum exactly.}
+\label{fig:curves}
+\end{figure}
+
 \section{Why we stopped measuring optimisation}
 
 We first compared the two models by how well they optimise. That turned out to
