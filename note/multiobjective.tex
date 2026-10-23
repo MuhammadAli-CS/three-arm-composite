@@ -65,6 +65,20 @@ $z^2$      & not bijective  & $3.935$ & $4.905$ & $+25.8\pm2.2$ & $+24.8$ \\
 which is the first thing worth saying: the advantage is large and robust in
 hypervolume, as in the benchmark table.
 
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/mobo.pdf}
+\caption{Absolute hypervolume gained by Composite, not percentage. The
+reference point is shared across conditions but the direct arm's baseline is
+not ($3.94$ to $5.36$), so a percentage flatters whichever condition the
+direct arm does worst on --- which happens to be the non-bijective one, the
+very row under test. Left: Composite wins everywhere. Middle: the per-run
+spread, which is what makes the contrasts hard. Right: the misspecification
+step is positive on $22/32$ runs, the information step an exact coin flip.}
+\label{fig:mobo}
+\end{figure}
+
 \paragraph{But the channels do not separate here.} Pairing by draw and seed:
 
 \begin{center}
@@ -102,6 +116,30 @@ optimisation, put that ratio at $3$ to $7$. Two methods with nothing in
 common agreeing on the split is worth more than either alone --- though with
 standard errors near $\pm6$ on each component, the agreement is of point
 estimates, not a confirmation.
+
+\paragraph{Absolute or relative?} Reporting the gain as a percentage, as
+the benchmark table does, turns out to matter here. The reference point is
+shared, so absolute hypervolume differences are comparable across conditions
+--- but the direct arm's baseline is not, running from $3.94$ on $z^2$ to
+$5.36$ on $\sinh z$. An identical absolute gain therefore becomes a larger
+percentage on $z^2$, the one non-bijective condition. On the comparable
+measure the information step reverses sign:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Contrast & Percentage & Absolute HV \\
+\midrule
+$z \to \sinh$ (misspecification) & $+6.85\pm5.97$, $21/32$ & $+0.358\pm0.296$, $22/32$, $p=0.05$ \\
+$\sinh \to z^2$ (information) & $+1.63\pm6.63$, $20/32$ & $-0.096\pm0.322$, $16/32$, $p=1.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent On absolute hypervolume the misspecification step is borderline
+significant and the information step is an exact coin flip --- which is more
+consistent with the exact decomposition, not less. The same caution applies to
+reading percentage gains across benchmarks whose hypervolume baselines differ.
 
 \paragraph{Why hypervolume is a blunter instrument.} The single-objective study
 resolved these channels because CRPS is a per-point score averaged over $512$

@@ -746,3 +746,72 @@ def fig_gain_grouped(json_path, path, n_show=40):
                 fontsize=7.5, color="0.35", style="italic")
     fig.tight_layout(rect=(0, 0.04, 1, 0.93))
     fig.savefig(path, bbox_inches="tight"); plt.close(fig)
+
+
+def fig_mobo(json_main, json_sinh, path):
+    """Two-objective result: absolute hypervolume improvement, by condition.
+
+    Absolute rather than percentage.  The reference point is shared across
+    conditions but the direct arm's baseline is not (3.94 to 5.36), so a
+    percentage flatters whichever condition the direct arm does worst on --
+    which happens to be the non-bijective one, the very row being tested.
+    """
+    import json, statistics as st, math
+    R = {**json.load(open(json_main))["results"],
+         **json.load(open(json_sinh))["results"]}
+    order = [n for n in ("identity", "sinh", "cube", "square") if n in R]
+    lab = {"identity": "$z$\n(linear)", "sinh": "$\sinh z$\n(bijective)",
+           "cube": "$z^3$\n(bijective)", "square": "$z^2$\n(NOT bijective)"}
+    col = {n: (C_KNOW if R[n]["injective"] else C_BAD) for n in order}
+    ABS = {n: [c - d for d, c in zip(R[n]["direct"], R[n]["composite"])] for n in order}
+
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(11.6, 4.0),
+                                     gridspec_kw={"width_ratios": [1.1, 1.0, 1.2]})
+
+    # (a) absolute improvement per condition
+    xs = range(len(order))
+    for i, n in enumerate(order):
+        v = ABS[n]; m = st.mean(v); se = st.stdev(v) / math.sqrt(len(v))
+        a1.bar(i, m, 0.6, yerr=1.96 * se, capsize=4, color=col[n])
+        a1.annotate(f"{m:.2f}", (i, m), xytext=(0, 14), ha="center",
+                    textcoords="offset points", fontsize=8.5)
+    a1.set_xticks(list(xs)); a1.set_xticklabels([lab[n] for n in order], fontsize=8)
+    a1.set_ylabel("hypervolume gained by Composite\n(absolute, shared reference point)")
+    a1.set_title("Composite wins in every condition", fontsize=9.5)
+    a1.axhline(0, color="k", lw=0.8)
+
+    # (b) per-run spread, so the bars are not hiding the tails
+    a2.boxplot([ABS[n] for n in order], widths=0.55, showfliers=True,
+               medianprops=dict(color="k"))
+    for i, n in enumerate(order, start=1):
+        a2.scatter([i] * len(ABS[n]), ABS[n], s=9, alpha=0.45, color=col[n], zorder=3)
+    a2.set_xticks(range(1, len(order) + 1))
+    a2.set_xticklabels([lab[n] for n in order], fontsize=7, rotation=20, ha="right")
+    a2.axhline(0, color="k", lw=0.8)
+    a2.set_title("per run (32 each)", fontsize=9.5)
+
+    # (c) the two contrasts, paired
+    def paired(x, y):
+        d = [q - p for p, q in zip(ABS[x], ABS[y])]
+        return st.mean(d), st.stdev(d) / math.sqrt(len(d)), \
+               sum(1 for v in d if v > 0), len(d)
+    pairs = []
+    if "sinh" in R:
+        pairs.append(("misspecification" + chr(10) + "$z " + chr(92) + "to " + chr(92) + "sinh$", paired("identity", "sinh")))
+        pairs.append(("information" + chr(10) + "$" + chr(92) + "sinh " + chr(92) + "to z^2$", paired("sinh", "square")))
+    pairs.append(("both" + chr(10) + "$z " + chr(92) + "to z^2$", paired("identity", "square")))
+    for i, (nm, (m, se, k, n_)) in enumerate(pairs):
+        a3.bar(i, m, 0.55, yerr=1.96 * se, capsize=4,
+               color="0.55" if "misspec" in nm else (C_OBS if "information" in nm else "0.3"))
+        a3.annotate(f"{k}/{n_} runs", (i, 0), xytext=(0, -26), ha="center",
+                    textcoords="offset points", fontsize=7.5, color="0.35")
+    a3.set_xticks(range(len(pairs)))
+    a3.set_xticklabels([n for n, _ in pairs], fontsize=8)
+    a3.axhline(0, color="k", lw=0.9)
+    a3.set_ylabel("change in hypervolume gained")
+    a3.set_title("the information step is a coin flip", fontsize=9.5)
+
+    fig.suptitle("Two objectives: only $g_1$ varies, $g_2$ is Ackley throughout",
+                 fontsize=10.5)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.93))
+    fig.savefig(path, bbox_inches="tight"); plt.close(fig)
