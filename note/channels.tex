@@ -91,14 +91,41 @@ the raw gap is inflated by \texttt{root5}, whose own interval spans
 zero.}
 \end{figure}
 
-\paragraph{But it is the smaller channel.} Misspecification runs $0.24$ to
-$0.43$ throughout, including at $s=0$ where there is no information to be had
-at all. It is three to seven times the information term and shows no
-dependence on injectivity.
+\paragraph{But the other gap is not what I first called it.} Models 1 and 3
+differ in two ways, not one. Model 1 has a GP prior on $f$ rather than on
+$\mathbf h$ --- the model-shape difference --- but it also has to \emph{estimate}
+its lengthscale and outputscale from between $5$ and $45$ points, where Model 3
+is handed the generator's true kernel.
 
-That is why the measured Composite-versus-Direct advantage does not track
-bijectivity: bijectivity governs the smaller of two terms, and the larger one
-is indifferent to it.
+The linear maps separate those. On 	exttt{identity} and 	exttt{sum}, $f$ is
+exactly a Gaussian process, so no model-shape difference is possible and
+whatever remains is estimation alone:
+
+\begin{center}
+\begin{tabular}{lrl}
+\toprule
+Map & $\sup|M_1-M_3|$ & What is in it \\
+\midrule
+\texttt{identity} (linear) & $0.264$ & estimation only \\
+\texttt{sum} (linear) & $0.183$ & estimation only \\
+spread family (nonlinear) & $0.24$ to $0.43$ & estimation \emph{and} model shape \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Giving Model 1 the \emph{implied} prior instead of a fitted one
+drives the gap to $0.000000$ on both linear maps, which is the proof that it is
+estimation rather than shape.
+
+Subtracting that baseline from the twenty spread maps leaves a model-shape
+excess of $+0.076$ on average (median $+0.089$), against a mean information
+channel of $+0.071$. \textbf{The two are the same order.} The dominant term is
+neither: it is that Composite is handed the true kernel and Direct is not.
+
+Three maps fall \emph{below} the baseline, which a clean decomposition would
+not allow, so the subtraction is approximate --- fitting a GP to $z^5 \circ h$
+is plausibly harder than fitting one to $h$, and the estimation penalty is not
+really a single constant. The ordering is the robust part, not the arithmetic.
 
 \paragraph{The effect looks binary, not graded.} Within the even-degree rows
 the information term is nearly flat as $\bar n$ climbs --- degree 4 gives

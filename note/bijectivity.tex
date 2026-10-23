@@ -77,8 +77,13 @@ knob works, and it is measured rather than asserted.
 \caption{Convergence on every single-objective problem: median
 $\log_{10}$ simple regret against evaluation, with the interquartile band.
 Regret rather than the raw best value, because $f_{\min}$ differs between
-function draws and the maps span very different scales. A floor at $-8$ is the
-clamp in the metric, reached when a run finds the optimum exactly.}
+function draws and the maps span very different scales. Panels are grouped by
+whether $g$ is injective over the region $h$ actually reaches, which is
+measured rather than read off the algebra --- 	exttt{shiftsq\_c3} and
+	exttt{relu} are non-injective on paper but effectively injective where the
+data is. Composite wins throughout \emph{both} groups, which is the point:
+the advantage does not come from information. A floor at $-8$ is the clamp in
+the metric, reached when a run finds the optimum exactly.}
 \label{fig:curves}
 \end{figure}
 

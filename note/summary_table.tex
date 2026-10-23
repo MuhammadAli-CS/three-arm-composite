@@ -23,12 +23,18 @@ Linear $g$: the direct model is already right
 Size of the information channel
  & 20 maps
  & $0$ (injective) to $0.14$ \\
-Size of the misspecification channel
+Size of the non-information gap
  & 20 maps
  & $0.24$ to $0.43$, including where no information exists \\
-\textbf{Ratio of the two}
+\quad of which: hyperparameter estimation
+ & identity, sum (linear)
+ & $0.264$, $0.183$ --- no model shape possible there \\
+\quad of which: model shape, net of that
+ & 20 maps
+ & $+0.076$ mean excess over the baseline \\
+\textbf{Which term dominates}
  &
- & \textbf{misspecification is $3$ to $7\times$ larger} \\
+ & \textbf{hyperparameter estimation}; model shape ($0.076$) and information ($0.071$) are the same order \\
 \addlinespace[3pt]
 
 \multicolumn{3}{@{}l}{\textbf{Predictive accuracy (\S\ref{sec:exactposteriors}) --- CRPS, 240 fits per map}}\\
@@ -79,9 +85,10 @@ An injective $g$ is monotone, so its optimum sits at an endpoint
 
 \paragraph{The one-sentence version.} Bijectivity decides, exactly, whether
 observing the intermediates carries any information --- and that is the
-smaller of the two reasons the composite model wins, by a factor of three to
-seven, with the larger reason being that a Gaussian process placed directly on
-$f$ is simply the wrong model whenever $g$ is nonlinear.
+smaller reasons the composite model wins. The largest single term is neither
+information nor model shape but the fact that the composite model is handed the
+generator's true kernel while the direct model must estimate one from a handful
+of points.
 
 \paragraph{What is not established.} Nothing here has been tested on the real
 benchmarks. Every inner function is drawn from the surrogate's own prior, and

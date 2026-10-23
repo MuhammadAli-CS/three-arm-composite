@@ -37,6 +37,11 @@ plt.rcParams.update({
     "legend.frameon": False,
 })
 C_KNOW, C_OBS, C_BAD = "#4878a8", "#d08838", "#b03030"
+# sup|M1-M3| on identity (linear, so f is exactly a GP and no
+# misspecification is possible) at n=8 with 12 query points -- the same
+# settings as the spread grid.  Whatever the grey bar shows, this much of
+# it is hyperparameter estimation rather than model shape.
+HYPER_BASELINE = 0.264
 
 
 def load(results_dir):
@@ -613,15 +618,19 @@ def fig_channels(json_path, path):
     ms = sorted(g, key=lambda k: (g[k]["m"], g[k]["s"]))
     xs = range(len(ms))
     a2.bar([x - 0.2 for x in xs], [g[k]["d13"] for k in ms], 0.4,
-           color="0.55", label=r"misspecification  $\sup|M_1-M_3|$")
+           color="0.55", label=r"not information  $\sup|M_1-M_3|$")
     a2.bar([x + 0.2 for x in xs], [g[k]["d23"] for k in ms], 0.4,
            color=C_OBS, label=r"information  $\sup|M_2-M_3|$")
     a2.set_xticks(list(xs))
     a2.set_xticklabels([f"{g[k]['m']}/{g[k]['s']:g}" for k in ms],
                        rotation=90, fontsize=6.5)
     a2.set_xlabel("degree / root spread $s$")
+    a2.axhline(HYPER_BASELINE, color="k", lw=1.0, ls="--", zorder=5)
+    a2.annotate("hyperparameters alone", xy=(0.02, HYPER_BASELINE),
+                xycoords=("axes fraction", "data"), xytext=(0, 4),
+                textcoords="offset points", fontsize=7, color="0.3", style="italic")
     a2.set_ylabel("Kolmogorov distance")
-    a2.set_title("misspecification dominates, and ignores injectivity",
+    a2.set_title("the non-information gap dominates, and ignores injectivity",
                  fontsize=9.5)
     a2.legend(fontsize=8)
     fig.tight_layout(); fig.savefig(path); plt.close(fig)
@@ -653,11 +662,17 @@ def fig_channels_simple(json_path, path):
     fig, ax = plt.subplots(figsize=(8.8, 6.6))
     ys = range(len(rows))
     ax.barh([y + 0.2 for y in ys], [g[k]["d13"] for k in rows], 0.4, color="0.6",
-            label="Direct assumes the wrong shape of function\n"
-                  "(cannot be fixed by $g$ being injective)")
+            label="everything that is NOT information\n"
+                  "(hyperparameters + model shape)")
     ax.barh([y - 0.2 for y in ys], [g[k]["d23"] for k in rows], 0.4, color=C_OBS,
             label="Direct never sees the intermediates $h$\n"
                   "(vanishes exactly when $g$ is injective)")
+    ax.axvline(HYPER_BASELINE, color="k", lw=1.0, ls="--", zorder=5)
+    ax.annotate("hyperparameter estimation alone," + chr(10) +
+                "measured on the linear maps",
+                xy=(HYPER_BASELINE, len(rows) - 0.5), xytext=(6, 0),
+                textcoords="offset points", fontsize=7.5,
+                color="0.25", style="italic", va="top")
     ax.set_yticks(list(ys))
     ax.set_yticklabels(
         [f"{_spr_label(k):16s} "
@@ -671,7 +686,7 @@ def fig_channels_simple(json_path, path):
     ax.set_xlabel("how far Direct's prediction of the objective is from "
                   "Composite's\n(Kolmogorov distance between the two posteriors; "
                   "bigger = Direct is more wrong)")
-    ax.set_title("Being injective removes one of Direct's two handicaps, "
+    ax.set_title("Being injective removes one of Direct's handicaps, "
                  "and not the larger one", fontsize=10.5)
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.16),
               ncol=2, frameon=False)
@@ -836,12 +851,37 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
             runs[blob["map"]][arm] += [
                 [math.log10(max(v - fm, 1e-8)) for v in r["best"]] for r in rs]
 
-    order = [m for m in OUTER_MAPS if m in runs]
+    # Group by whether g is injective over the region h actually reaches,
+    # which is measured rather than read off the algebra: shiftsq_c3 and relu
+    # are non-injective on paper but effectively injective where the data is,
+    # and that is the property that matters.
+    from three_arm.injectivity import summarize
+    def is_inj(m):
+        o = OUTER_MAPS[m]
+        if o.kind in ("identity", "invertible"):
+            return True
+        if o.k > 1:
+            return False               # continuous fibers: never injective
+        try:
+            return summarize(m)["nbar"] < 1.05
+        except Exception:
+            return False
+    inj = [m for m in OUTER_MAPS if m in runs and is_inj(m)]
+    non = [m for m in OUTER_MAPS if m in runs and not is_inj(m)]
+    # pad the injective block to a whole number of rows so the two groups do
+    # not share a row
+    pad = (-len(inj)) % ncols
+    order = inj + [None] * pad + non
     nrows = (len(order) + ncols - 1) // ncols
     fig, axes = plt.subplots(nrows, ncols, figsize=(2.5 * ncols, 2.15 * nrows),
                              squeeze=False)
     colours = {"direct": "0.45", "composite": C_KNOW, "latent": C_OBS}
     for ax, name in zip(axes.ravel(), order):
+        if name is None:
+            ax.axis("off")
+            continue
+        if name in inj:
+            ax.set_facecolor("#eef3f8")
         for arm in arms:
             if arm not in runs[name]:
                 continue
@@ -858,11 +898,19 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
     for ax in axes.ravel()[len(order):]:
         ax.axis("off")
     axes[0][0].legend(fontsize=7)
+    nr_inj = (len(inj) + ncols - 1) // ncols
+    axes[0][0].annotate("INJECTIVE over the range $h$ reaches",
+                        xy=(0.0, 1.30), xycoords="axes fraction", fontsize=9,
+                        fontweight="bold", color="#2b4a66")
+    if non:
+        axes[nr_inj][0].annotate("NOT injective", xy=(0.0, 1.30),
+                                 xycoords="axes fraction", fontsize=9,
+                                 fontweight="bold", color="#8a2b2b")
     for ax in axes[-1]:
         ax.set_xlabel("evaluation", fontsize=7.5)
     for row in axes:
         row[0].set_ylabel("$\log_{10}$ regret", fontsize=7.5)
     fig.suptitle("Convergence per problem: median $\log_{10}$ simple regret "
                  "with the interquartile band, lower is better", fontsize=10)
-    fig.tight_layout(rect=(0, 0, 1, 0.965))
+    fig.tight_layout(rect=(0, 0, 1, 0.955), h_pad=2.2)
     fig.savefig(path); plt.close(fig)
