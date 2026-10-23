@@ -1,0 +1,91 @@
+\section*{Everything in one table}
+
+Four experiments, two of them exact and two estimated. ``Exact'' means
+computed by enumerating posteriors --- no sampler, no fitting, no replicates,
+so there is no error bar to quote. The sections give the detail.
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{5.9cm}p{3.5cm}p{5.2cm}@{}}
+\toprule
+Claim & Evidence & Result \\
+\midrule
+
+\multicolumn{3}{@{}l}{\textbf{Exact (\S\ref{sec:channels}) --- computed, not estimated}}\\
+\addlinespace[2pt]
+Bijective $g$: observing $h$ adds nothing
+ & 20 maps, enumerated
+ & $\mathbf{0.000000}$ for $z^3$ and $z^5$; non-zero for every other map \\
+Linear $g$: the direct model is already right
+ & identity, sum
+ & $\mathbf{0.000000}$ \\
+Size of the information channel
+ & 20 maps
+ & $0$ (injective) to $0.14$ \\
+Size of the misspecification channel
+ & 20 maps
+ & $0.24$ to $0.43$, including where no information exists \\
+\textbf{Ratio of the two}
+ &
+ & \textbf{misspecification is $3$ to $7\times$ larger} \\
+\addlinespace[3pt]
+
+\multicolumn{3}{@{}l}{\textbf{Predictive accuracy (\S\ref{sec:exactposteriors}) --- CRPS, 240 fits per map}}\\
+\addlinespace[2pt]
+Composite predicts better than Direct
+ & 20 maps $\times$ 240 fits
+ & every map, $t \ge 3.6$; $207$--$240$ wins out of $240$ \\
+Linear $g$ gains least
+ & all four sample sizes
+ & $+0.0050$ against $0.019$--$0.037$ elsewhere \\
+\textbf{Crossing injective $\to$ non-injective}
+ & difference-in-differences, even rows as control
+ & $\mathbf{+0.0190 \pm 0.0080}$, $t=2.37$ \\
+The effect is binary, not graded in $\bar n$
+ & even-degree rows
+ & flat as $\bar n$ climbs $2.0 \to 3.9$ \\
+\addlinespace[3pt]
+
+\multicolumn{3}{@{}l}{\textbf{Multi-objective (\S\ref{sec:mobo}) --- hypervolume, the paper's own solvers}}\\
+\addlinespace[2pt]
+The advantage transfers to hypervolume
+ & 4 conditions $\times$ 32 runs
+ & $+17\%$ to $+31\%$; $26$--$31$ wins of $32$ \\
+Gain is large even when $g_1$ is linear
+ & 32 runs
+ & $+17.3\%$, $31/32$ --- where information is provably zero \\
+Misspecification step ($z \to \sinh$)
+ & paired
+ & $+6.85 \pm 5.97$ \quad (n.s.) \\
+Information step ($\sinh \to z^2$)
+ & paired
+ & $+1.63 \pm 6.63$ \quad (n.s.) \\
+\textbf{Their ratio}
+ &
+ & $\approx 4{:}1$, matching the exact $3$--$7\times$ \\
+\addlinespace[3pt]
+
+\multicolumn{3}{@{}l}{\textbf{Structural results (\S\ref{sec:inseparable}) --- proved and measured}}\\
+\addlinespace[2pt]
+In one dimension, non-injective $\Rightarrow$ $g$ folds $\Rightarrow$ $y(x)$ gains turning points
+ & counted on every map
+ & injective maps: $1$ turn, as $h$ itself. Others: $2$--$3$ \\
+An injective $g$ is monotone, so its optimum sits at an endpoint
+ & --- & regret cannot compare the two classes fairly \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{The one-sentence version.} Bijectivity decides, exactly, whether
+observing the intermediates carries any information --- and that is the
+smaller of the two reasons the composite model wins, by a factor of three to
+seven, with the larger reason being that a Gaussian process placed directly on
+$f$ is simply the wrong model whenever $g$ is nonlinear.
+
+\paragraph{What is not established.} Nothing here has been tested on the real
+benchmarks. Every inner function is drawn from the surrogate's own prior, and
+every outer map but the multi-objective one is scalar. Whether this mechanism
+explains the spread of gains in the benchmark table --- the question that
+started this --- remains open, and Section~\ref{sec:mobo} is the closest we
+come to it.

@@ -53,9 +53,10 @@ evaluations, $32$ paired runs per condition.
 \toprule
 $g_1$ & & HV direct & HV composite & Gain (\%) & median \\
 \midrule
-$z$    & linear         & $4.338$ & $5.046$ & $+17.3\pm2.1$ & $+15.6$ \\
-$z^3$  & bijective      & $5.033$ & $6.267$ & $+30.8\pm6.4$ & $+22.6$ \\
-$z^2$  & not bijective  & $3.935$ & $4.905$ & $+25.8\pm2.2$ & $+24.8$ \\
+$z$        & linear         & $4.338$ & $5.046$ & $+17.3\pm2.1$ & $+15.6$ \\
+$\sinh z$ & bijective      & $5.361$ & $6.427$ & $+24.2\pm5.7$ & $+23.4$ \\
+$z^3$      & bijective      & $5.033$ & $6.267$ & $+30.8\pm6.4$ & $+22.6$ \\
+$z^2$      & not bijective  & $3.935$ & $4.905$ & $+25.8\pm2.2$ & $+24.8$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -71,19 +72,36 @@ hypervolume, as in the benchmark table.
 \toprule
 Contrast & Mean & Median & Sign test \\
 \midrule
-$z \to z^3$ \quad (misspecification only) & $+13.4\pm6.6$ & $-0.7$ & $16/32$, $p=1.00$ \\
-$z^3 \to z^2$ \quad (adds information loss) & $-5.0\pm7.3$ & $+6.5$ & $19/32$, $p=0.38$ \\
-$z \to z^2$ \quad (both channels) & $+8.5\pm3.2$ & $+7.4$ & $21/32$, $p=0.11$ \\
+\multicolumn{4}{l}{\emph{with $\sinh$ as the bijective partner}}\\
+$z \to \sinh$ \quad (misspecification only) & $+6.85\pm5.97$ & $+7.43$ & $21/32$, $p=0.11$ \\
+$\sinh \to z^2$ \quad (adds information) & $+1.63\pm6.63$ & $+5.18$ & $20/32$, $p=0.22$ \\
+\addlinespace
+\multicolumn{4}{l}{\emph{with $z^3$ as the bijective partner}}\\
+$z \to z^3$ & $+13.4\pm6.6$ & $-0.7$ & $16/32$, $p=1.00$ \\
+$z^3 \to z^2$ & $-5.0\pm7.3$ & $+6.5$ & $19/32$, $p=0.38$ \\
+\addlinespace
+$z \to z^2$ \quad (both channels) & $+8.48\pm3.22$ & $+7.41$ & $21/32$, $p=0.11$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent The mean and the median disagree on the first row, and the sign test
-reads an exact coin flip. The cause is $z^3$: its gain runs from $-29\%$ to
-$+131\%$, so a few seeds where the direct GP fits badly carry the mean well
-above the median ($30.8$ against $22.6$). The ordering of the medians
-($15.6 \to 22.6 \to 24.8$) is the one predicted, but no individual contrast is
-significant.
+\noindent With $z^3$ as the partner the mean and the median disagree and the
+sign test reads an exact coin flip, because its gain runs from $-29\%$ to
+$+131\%$ and a few seeds carry the mean far above the median. $\sinh$ was added
+as a second bijective partner on the theory that a tamer range would reduce
+that variance. It did not --- its spread, $-38\%$ to $+123\%$, is essentially
+the same --- so the variance is a property of hypervolume on these problems
+rather than of $z^3$. But it is far less skewed, its mean and median agree
+($24.2$ against $23.4$), and on that ladder both steps point the same way.
+
+\paragraph{The point estimates match the exact decomposition.} On the $\sinh$
+ladder the two channels come out at $+6.85$ and $+1.63$, which add to the
+$+8.48$ measured end to end, and sit in a ratio of about $4{:}1$.
+Section~\ref{sec:channels}, by enumerating posteriors rather than running any
+optimisation, put that ratio at $3$ to $7$. Two methods with nothing in
+common agreeing on the split is worth more than either alone --- though with
+standard errors near $\pm6$ on each component, the agreement is of point
+estimates, not a confirmation.
 
 \paragraph{Why hypervolume is a blunter instrument.} The single-objective study
 resolved these channels because CRPS is a per-point score averaged over $512$
