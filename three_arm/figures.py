@@ -817,7 +817,7 @@ def fig_mobo(json_main, json_sinh, path):
     fig.savefig(path, bbox_inches="tight"); plt.close(fig)
 
 
-def fig_bo_curves(results_dir, path, arms=("direct", "composite", "latent"),
+def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
                   ncols=5):
     """Convergence per problem: log10 simple regret against evaluation.
 
