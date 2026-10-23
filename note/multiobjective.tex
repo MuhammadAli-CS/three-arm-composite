@@ -1,0 +1,108 @@
+\section{Does this carry over to multiple objectives?}
+\label{sec:mobo}
+
+Everything above is single-objective, while the benchmark table the whole
+question comes from is measured in hypervolume. So the last experiment puts
+the same contrast into a two-objective problem and uses the paper's own
+machinery --- independent GPs, \texttt{qLogEHVI}, the same solvers --- rather
+than anything built for this note.
+
+\paragraph{The structure.} One objective carries the map under test; the other
+is held fixed.
+\[
+x \longrightarrow
+\begin{cases}
+h_0 \longrightarrow g_1 \longrightarrow f_1 & \text{$g_1$ varies} \\
+h_1,h_2,h_3,h_4 \longrightarrow g_2 \longrightarrow f_2 & \text{$g_2$ fixed (Ackley)}
+\end{cases}
+\]
+The composite model observes all five intermediates; the direct model sees only
+$(f_1,f_2)$. The input dimension, the five inner functions, $g_2$ and the
+initial designs are identical across conditions, so any difference between rows
+is attributable to the structure of $g_1$ alone.
+
+Two details matter for the comparison to mean anything. Each objective is
+normalised on a fixed reference set, because hypervolume is not scale-free and
+$z^2$ and $z^3$ otherwise span very different ranges. And all conditions share
+\emph{one} reference point --- taken as the element-wise worst across them ---
+since letting each pick its own would make the hypervolumes incommensurable,
+which is exactly the comparison being made.
+
+\paragraph{Conditions.} The same three regimes as the single-objective study:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+$g_1$ & & what changes \\
+\midrule
+$z$   & linear & the direct model is \emph{correct}; nothing is lost \\
+$z^3$, $\sinh z$ & bijective, nonlinear & wrong model shape, nothing lost \\
+$z^2$ & not bijective & wrong model shape \emph{and} the sign of $h_0$ is lost \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent So linear~$\to$~bijective isolates misspecification, and
+bijective~$\to$~square adds information loss at comparable nonlinearity.
+
+\paragraph{Result.} Four function draws $\times$ eight seeds, $40$ adaptive
+evaluations, $32$ paired runs per condition.
+
+\begin{center}
+\begin{tabular}{llrrrr}
+\toprule
+$g_1$ & & HV direct & HV composite & Gain (\%) & median \\
+\midrule
+$z$    & linear         & $4.338$ & $5.046$ & $+17.3\pm2.1$ & $+15.6$ \\
+$z^3$  & bijective      & $5.033$ & $6.267$ & $+30.8\pm6.4$ & $+22.6$ \\
+$z^2$  & not bijective  & $3.935$ & $4.905$ & $+25.8\pm2.2$ & $+24.8$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Composite wins in every condition and on $26$ to $31$ of $32$ runs,
+which is the first thing worth saying: the advantage is large and robust in
+hypervolume, as in the benchmark table.
+
+\paragraph{But the channels do not separate here.} Pairing by draw and seed:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Contrast & Mean & Median & Sign test \\
+\midrule
+$z \to z^3$ \quad (misspecification only) & $+13.4\pm6.6$ & $-0.7$ & $16/32$, $p=1.00$ \\
+$z^3 \to z^2$ \quad (adds information loss) & $-5.0\pm7.3$ & $+6.5$ & $19/32$, $p=0.38$ \\
+$z \to z^2$ \quad (both channels) & $+8.5\pm3.2$ & $+7.4$ & $21/32$, $p=0.11$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The mean and the median disagree on the first row, and the sign test
+reads an exact coin flip. The cause is $z^3$: its gain runs from $-29\%$ to
+$+131\%$, so a few seeds where the direct GP fits badly carry the mean well
+above the median ($30.8$ against $22.6$). The ordering of the medians
+($15.6 \to 22.6 \to 24.8$) is the one predicted, but no individual contrast is
+significant.
+
+\paragraph{Why hypervolume is a blunter instrument.} The single-objective study
+resolved these channels because CRPS is a per-point score averaged over $512$
+held-out points. Hypervolume is one number per run, produced by a stochastic
+forty-step optimisation, with a heavy right tail. The standard errors here are
+roughly five times worse relative to the effect. Resolving the
+bijective-to-square step at this noise level needs about $13\times$ more runs,
+roughly $400$ per condition.
+
+That is a statement about the \emph{measurement}, not about the effect. The
+exact decomposition of Section~\ref{sec:channels} does not depend on any of
+this: it is computed, not estimated, and it already shows the information
+channel to be the smaller of the two. The multi-objective experiment is
+consistent with that and simply lacks the power to confirm it independently.
+
+\paragraph{What this adds anyway.} Two things that do not need the contrast to
+separate. First, the large composite advantage survives in hypervolume on a
+problem where the inner functions are drawn from the surrogate's own prior, so
+it is not an artefact of any particular benchmark. Second, the advantage is
+substantial \emph{even when $g_1$ is linear} ($+17.3\%$, $31/32$ runs) --- a
+case where the proposition guarantees that observing $h$ conveys no information
+at all. Whatever is producing that gain, it is not information.
