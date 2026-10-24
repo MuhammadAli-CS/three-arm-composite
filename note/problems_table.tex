@@ -1,0 +1,35 @@
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Every problem. $k$ is the number of intermediates, $\bar n$ the
+measured average number of $h$ values consistent with one observation, and
+the last column what $g$ throws away. A dash in $\bar n$ means the fiber is
+continuous, so the count is infinite.}
+\label{tab:problems}
+\begin{tabular}{@{}l c l c l l@{}}
+\toprule
+Problem & $k$ & $g(h)$ & $\bar n$ & Bijective? & What $g$ discards \\
+\midrule
+\texttt{identity} & 1 & $h$ & 1.00 & \textbf{yes} & nothing \\
+\texttt{exp\_b1} & 1 & $e^{h}$ & 1.00 & \textbf{yes} & nothing (monotone, positive) \\
+\texttt{sinh\_b1} & 1 & $\sinh h$ & 1.00 & \textbf{yes} & nothing (monotone, unbounded) \\
+\texttt{shiftsq\_c3} & 1 & $(h-3)^2$ & 1.01 & \textbf{yes} & sign of h - c \\
+\midrule
+\texttt{shiftsq\_c0} & 1 & $h^2$ & 2.00 & no & sign of h - c \\
+\texttt{shiftsq\_c0.5} & 1 & $(h-0.5)^2$ & 2.00 & no & sign of h - c \\
+\texttt{shiftsq\_c1} & 1 & $(h-1)^2$ & 1.95 & no & sign of h - c \\
+\texttt{shiftsq\_c2} & 1 & $(h-2)^2$ & 1.37 & no & sign of h - c \\
+\texttt{abs} & 1 & $|h|$ & 2.00 & no & sign of h (with a kink) \\
+\texttt{cos\_w1} & 1 & $\cos h$ & 2.03 & no & which of many preimages \\
+\texttt{cos\_w2} & 1 & $\cos 2h$ & 5.04 & no & which of many preimages \\
+\texttt{relu} & 1 & $-\max(h,0)$ & $\boldsymbol{\infty}$ & no & everything below zero (censoring, away from the optimum) \\
+\texttt{clip\_c2} & 2 & $\mathrm{clip}(2h_1,-1,1)+h_2$ & --- & no & the clipped coordinate inside the saturated regions \\
+\texttt{sum} & 2 & $h_1+h_2$ & --- & no & how the sum splits (Truss / RCM40) \\
+\texttt{product} & 2 & $h_1h_2$ & --- & no & how the product factors, and sign (DTLZ2) \\
+\texttt{norm} & 2 & $\sqrt{h_1^2+h_2^2}$ & --- & no & direction (Color) \\
+\texttt{max} & 2 & $\max(h_1,h_2)$ & --- & no & the smaller value (Lake) \\
+\texttt{ratio} & 2 & $\frac{\sigma(h_1)}{0.05+\sigma(h_1)+\sigma(h_2)}$ & --- & no & scale (RGB) \\
+\bottomrule
+\end{tabular}
+\end{table}

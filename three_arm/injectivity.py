@@ -46,9 +46,19 @@ def fiber_sizes(problem, n_probe: int = 4000, grid: int = 20001):
     ys = problem.outer.fn(h.unsqueeze(-1)).numpy()          # (n_probe,)
 
     # For each y, count sign changes of g(z) - y along the grid.
+    step = float(z[1] - z[0])
+    scale = max(float(np.abs(gz).max()), 1e-12)
     counts = np.empty(len(ys))
     for i, y in enumerate(ys):
         d = gz - y
+        # A flat region is not a crossing, so counting sign changes silently
+        # misses it -- which is how -max(h,0) came out as injective when half
+        # the domain maps to one value.  Any run of grid points sitting on the
+        # level set is reported as an infinite fiber instead.
+        on = np.abs(d) < 1e-9 * scale
+        if on.sum() > 2:
+            counts[i] = np.inf
+            continue
         counts[i] = int(np.count_nonzero(np.signbit(d[:-1]) != np.signbit(d[1:])))
     return counts, (lo, hi)
 
@@ -56,8 +66,12 @@ def fiber_sizes(problem, n_probe: int = 4000, grid: int = 20001):
 def summarize(name, d=6, draw_seed=0):
     p = make_problem(name, d=d, lengthscale=0.5, draw_seed=draw_seed)
     c, (lo, hi) = fiber_sizes(p)
-    return dict(map=name, kind=p.outer.kind, nbar=float(c.mean()),
-                frac_multi=float((c > 1).mean()), nmax=int(c.max()),
+    finite = c[np.isfinite(c)]
+    return dict(map=name, kind=p.outer.kind,
+                nbar=float(finite.mean()) if len(finite) else float("inf"),
+                frac_infinite=float((~np.isfinite(c)).mean()),
+                frac_multi=float((c > 1).mean()),
+                nmax=int(finite.max()) if len(finite) else -1,
                 hrange=(lo, hi))
 
 

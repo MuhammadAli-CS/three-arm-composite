@@ -832,56 +832,51 @@ def fig_mobo(json_main, json_sinh, path):
     fig.savefig(path, bbox_inches="tight"); plt.close(fig)
 
 
-def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
-                  ncols=5):
-    """Convergence per problem: log10 simple regret against evaluation.
 
-    Regret rather than the raw best value, for three reasons.  f_min differs
-    between function draws, so a single horizontal "optimum" line cannot be
-    drawn against curves pooled over draws.  The maps span very different
-    scales.  And every analysis in this note is on log regret, so the curves
-    and the tables then describe the same quantity.
+def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
+                  exclude=("cos_w4",), inj_cols=2, non_cols=4):
+    """Convergence per problem, bijective block on the left of a vertical rule.
+
+    Regret rather than the raw best value: f_min differs between function
+    draws, so a single horizontal optimum line cannot be drawn against curves
+    pooled over draws, and the maps span very different scales.
     """
     import glob, json, os, collections, math
+    import matplotlib.gridspec as gridspec
+    from three_arm.injectivity import summarize
+
     runs = collections.defaultdict(lambda: collections.defaultdict(list))
-    for p in sorted(glob.glob(os.path.join(results_dir, "*.json"))):
-        blob = json.load(open(p))
+    for fp in sorted(glob.glob(os.path.join(results_dir, "*.json"))):
+        blob = json.load(open(fp))
+        if blob["map"] in exclude:
+            continue
         fm = blob["f_min"]
         for arm, rs in blob["results"].items():
             runs[blob["map"]][arm] += [
                 [math.log10(max(v - fm, 1e-8)) for v in r["best"]] for r in rs]
 
-    # Group by whether g is injective over the region h actually reaches,
-    # which is measured rather than read off the algebra: shiftsq_c3 and relu
-    # are non-injective on paper but effectively injective where the data is,
-    # and that is the property that matters.
-    from three_arm.injectivity import summarize
     def is_inj(m):
         o = OUTER_MAPS[m]
         if o.kind in ("identity", "invertible"):
             return True
         if o.k > 1:
-            return False               # continuous fibers: never injective
-        try:
-            return summarize(m)["nbar"] < 1.05
-        except Exception:
             return False
+        r = summarize(m)
+        # an infinite fiber on a set of positive measure is as non-injective
+        # as it gets, however few crossings the counter finds
+        return r["frac_infinite"] < 1e-6 and r["nbar"] < 1.05
+
     inj = [m for m in OUTER_MAPS if m in runs and is_inj(m)]
     non = [m for m in OUTER_MAPS if m in runs and not is_inj(m)]
-    # pad the injective block to a whole number of rows so the two groups do
-    # not share a row
-    pad = (-len(inj)) % ncols
-    order = inj + [None] * pad + non
-    nrows = (len(order) + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(2.5 * ncols, 2.15 * nrows),
-                             squeeze=False)
+    nrows = max((len(inj) + inj_cols - 1) // inj_cols,
+                (len(non) + non_cols - 1) // non_cols)
+    ncols = inj_cols + non_cols
+
+    fig = plt.figure(figsize=(2.45 * ncols, 2.1 * nrows))
+    gs = gridspec.GridSpec(nrows, ncols, figure=fig, wspace=0.42, hspace=0.55)
     colours = {"direct": "0.45", "composite": C_KNOW, "latent": C_OBS}
-    for ax, name in zip(axes.ravel(), order):
-        if name is None:
-            ax.axis("off")
-            continue
-        if name in inj:
-            ax.set_facecolor("#eef3f8")
+
+    def panel(ax, name):
         for arm in arms:
             if arm not in runs[name]:
                 continue
@@ -895,22 +890,28 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
             ax.fill_between(range(n), lo, hi, color=colours.get(arm, "k"), alpha=0.13)
         ax.set_title(name, fontsize=8.5)
         ax.tick_params(labelsize=6.5)
-    for ax in axes.ravel()[len(order):]:
-        ax.axis("off")
-    axes[0][0].legend(fontsize=7)
-    nr_inj = (len(inj) + ncols - 1) // ncols
-    axes[0][0].annotate("INJECTIVE over the range $h$ reaches",
-                        xy=(0.0, 1.30), xycoords="axes fraction", fontsize=9,
-                        fontweight="bold", color="#2b4a66")
-    if non:
-        axes[nr_inj][0].annotate("NOT injective", xy=(0.0, 1.30),
-                                 xycoords="axes fraction", fontsize=9,
-                                 fontweight="bold", color="#8a2b2b")
-    for ax in axes[-1]:
-        ax.set_xlabel("evaluation", fontsize=7.5)
-    for row in axes:
-        row[0].set_ylabel("$\log_{10}$ regret", fontsize=7.5)
-    fig.suptitle("Convergence per problem: median $\log_{10}$ simple regret "
-                 "with the interquartile band, lower is better", fontsize=10)
-    fig.tight_layout(rect=(0, 0, 1, 0.955), h_pad=2.2)
-    fig.savefig(path); plt.close(fig)
+
+    first = None
+    for k, m in enumerate(inj):
+        ax = fig.add_subplot(gs[k // inj_cols, k % inj_cols])
+        ax.set_facecolor("#eef3f8"); panel(ax, m)
+        if first is None:
+            first = ax
+        if k % inj_cols == 0:
+            ax.set_ylabel("$\log_{10}$ regret", fontsize=7.5)
+    for k, m in enumerate(non):
+        ax = fig.add_subplot(gs[k // non_cols, inj_cols + k % non_cols])
+        panel(ax, m)
+    first.legend(fontsize=7)
+
+    # the dividing rule, in figure coordinates between the two blocks
+    x = (gs[0, inj_cols - 1].get_position(fig).x1
+         + gs[0, inj_cols].get_position(fig).x0) / 2
+    fig.add_artist(plt.Line2D([x, x], [0.03, 0.93], color="k", lw=1.4))
+    fig.text(x - 0.012, 0.955, "BIJECTIVE", ha="right", fontsize=11,
+             fontweight="bold", color="#2b4a66")
+    fig.text(x + 0.012, 0.955, "NOT BIJECTIVE", ha="left", fontsize=11,
+             fontweight="bold", color="#8a2b2b")
+    fig.suptitle("Median $\log_{10}$ simple regret with the interquartile band, "
+                 "lower is better", fontsize=10, y=0.995)
+    fig.savefig(path, bbox_inches="tight"); plt.close(fig)
