@@ -1,0 +1,19 @@
+\begin{table}[H]
+\centering\small
+\caption{Two objectives, $f_1=g_1(h_1)$ and $f_2=h_2$, with $h_1,h_2$ independent
+draws from a Mat\'ern 5/2 GP --- BoTorch's default kernel, so both surrogates are
+correctly specified about the intermediates.  Final hypervolume over 32 runs
+(4 function draws $\times$ 8 seeds), mean $\pm$ SD, shared reference point.
+$p$ is a one-sided paired $t$-test for Composite exceeding Direct.}
+\label{tab:mobo}
+\begin{tabular}{@{}l l l r r r r@{}}
+\toprule
+$g_1$ & Form & Structure & Direct & Composite & Gain (\%) & $p$ \\
+\midrule
+\texttt{identity} & $h_1$ & linear; $f_1$ is a GP & $4.56\pm1.28$ & $4.60\pm1.29$ & $+1.1$ & 0.129 \\
+\texttt{sinh} & $\sinh h_1$ & bijective, nonlinear & $5.44\pm2.05$ & $5.77\pm2.07$ & $+9.2$ & 0.066 \\
+\texttt{cube} & $h_1^3$ & bijective, nonlinear & $4.64\pm1.63$ & $5.25\pm1.92$ & $+19.3$ & 0.018 \\
+\texttt{square} & $h_1^2$ & \textbf{NOT bijective} & $4.21\pm1.47$ & $4.45\pm1.57$ & $+5.8$ & $<$0.001 \\
+\bottomrule
+\end{tabular}
+\end{table}

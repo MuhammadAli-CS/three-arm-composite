@@ -34,6 +34,25 @@ _CHUNK = 4096
 # --------------------------------------------------------------------------
 # Common GP-draw generator (doc Section 4)
 # --------------------------------------------------------------------------
+def _spectral_sample(d, n_features, lengthscale, kernel, gen):
+    """Draw frequencies from the kernel's spectral density.
+
+    RBF's is Gaussian.  Matern-nu's is a multivariate Student-t with 2*nu
+    degrees of freedom, sampled as a Gaussian scaled by an inverse Gamma --
+    which is what makes Matern draws rougher than RBF ones.  BoTorch's default
+    kernel is Matern 5/2, so generating h from it is what makes the surrogate
+    correctly specified about the inner function rather than merely close.
+    """
+    z = torch.randn(n_features, d, generator=gen, dtype=DTYPE)
+    if kernel == "rbf":
+        return z / lengthscale
+    nu = 2.5
+    u = torch.distributions.Gamma(torch.tensor(nu, dtype=DTYPE),
+                                  torch.tensor(nu, dtype=DTYPE)).sample(
+        (n_features, 1))
+    return z / (lengthscale * u.sqrt())
+
+
 class RFFDraw:
     """Fixed RBF-GP draw via random Fourier features.
 
@@ -46,10 +65,12 @@ class RFFDraw:
     """
 
     def __init__(self, d: int, lengthscale: float = 0.5, seed: int = 0,
-                 n_features: int = 1024, n_ref: int = 16384):
+                 n_features: int = 1024, n_ref: int = 16384,
+                 kernel: str = "rbf"):
         gen = torch.Generator().manual_seed(seed)
+        self.kernel = kernel
         self.d, self.lengthscale, self.seed = d, lengthscale, seed
-        self.omega = torch.randn(n_features, d, generator=gen, dtype=DTYPE) / lengthscale
+        self.omega = _spectral_sample(d, n_features, lengthscale, kernel, gen)
         self.b = TWO_PI * torch.rand(n_features, generator=gen, dtype=DTYPE)
         self.a = torch.randn(n_features, generator=gen, dtype=DTYPE)
         self.scale = math.sqrt(2.0 / n_features)
