@@ -362,6 +362,8 @@ def main():
                 s_["observe_h"] = paired(acc["latent"], acc["composite"])
             if {"direct", "composite"} <= set(acc):
                 s_["total"] = paired(acc["direct"], acc["composite"])
+            if {"direct", "composite_mle"} <= set(acc):
+                s_["gain_mle"] = paired(acc["direct"], acc["composite_mle"])
             if u:
                 s_["mean_u_lost"] = sum(u) / len(u)
             s_["n"], s_["draws"] = len(next(iter(acc.values()))), draws[name]

@@ -22,7 +22,7 @@
 #   python three_arm/run.py --collect
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mkdir -p cluster/logs three_arm/results
+mkdir -p cluster/logs "${OUT:-three_arm/results}"
 
 SEEDS="${SEEDS:-10}"
 BUDGET="${BUDGET:-40}"
@@ -69,11 +69,16 @@ print(" ".join(dict.fromkeys(m for g in sys.argv[1:] for m in GROUPS[g])))
 PY
 ) || exit 1
 
-echo "submitting $(echo "$MAPS" | wc -w) jobs (seeds=$SEEDS budget=$BUDGET): $MAPS"
+echo "submitting $(( $(echo "$MAPS" | wc -w) * $(echo "$DRAWS" | wc -w) )) jobs"
+echo "  maps:   $MAPS"
+echo "  draws:  $DRAWS   seeds: $SEEDS   budget: $BUDGET"
+echo "  kernel: $KERNEL  arms: $ARMS  out: $OUT"
 for map in $MAPS; do
-  sbatch --requeue \
-    --job-name="three-arm-${map}" \
+  for draw in $DRAWS; do
+    sbatch --requeue \
+      --job-name="three-arm-${map}-d${draw}" \
       --export=MAP="$map",SEEDS="$SEEDS",BUDGET="$BUDGET",DRAW="$draw",KERNEL="$KERNEL",ARMS="$ARMS",OUT="$OUT",ENV_PATH="$ENV_PATH" \
-    --parsable \
-    cluster/three_arm.sub
+      --parsable \
+      cluster/three_arm.sub
+  done
 done
