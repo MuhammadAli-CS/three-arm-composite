@@ -50,5 +50,5 @@ export MKL_NUM_THREADS=1
 echo "[$(date)] host=$(hostname) map=$MAP seeds=$SEEDS budget=$BUDGET draw=$DRAW kernel=$KERNEL arms=$ARMS out=$OUT extra=${EXTRA:-none}"
 # EXTRA is deliberately unquoted so it can carry several flags.
 python three_arm/run.py --maps "$MAP" --seeds "$SEEDS" --budget "$BUDGET" \
-  --out "$OUT" $EXTRA
+  --draw-seed "$DRAW" --kernel "$KERNEL" --arms $ARMS --out "$OUT" $EXTRA
 echo "[$(date)] done map=$MAP draw=$DRAW"
