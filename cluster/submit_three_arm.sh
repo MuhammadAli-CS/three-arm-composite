@@ -28,6 +28,9 @@ SEEDS="${SEEDS:-10}"
 BUDGET="${BUDGET:-40}"
 ENV_PATH="${ENV_PATH:-$HOME/morbo-env}"
 DRAWS="${DRAWS:-0}"
+KERNEL="${KERNEL:-matern}"
+ARMS="${ARMS:-direct composite_mle}"
+OUT="${OUT:-three_arm/results}"
 GROUPS_TO_RUN=("$@")
 if [ ${#GROUPS_TO_RUN[@]} -eq 0 ]; then
   GROUPS_TO_RUN=(validate sweep pairs analogs)
@@ -70,7 +73,7 @@ echo "submitting $(echo "$MAPS" | wc -w) jobs (seeds=$SEEDS budget=$BUDGET): $MA
 for map in $MAPS; do
   sbatch --requeue \
     --job-name="three-arm-${map}" \
-    --export=MAP="$map",SEEDS="$SEEDS",BUDGET="$BUDGET",ENV_PATH="$ENV_PATH" \
+      --export=MAP="$map",SEEDS="$SEEDS",BUDGET="$BUDGET",DRAW="$draw",KERNEL="$KERNEL",ARMS="$ARMS",OUT="$OUT",ENV_PATH="$ENV_PATH" \
     --parsable \
     cluster/three_arm.sub
 done

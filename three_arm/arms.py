@@ -369,4 +369,52 @@ class LatentArm:
         return dict(self.stats)
 
 
-ARMS = {"direct": DirectArm, "composite": CompositeArm, "latent": LatentArm}
+
+class FittedCompositeArm:
+    """Composite with the intermediates' hyperparameters fitted, not given.
+
+    CompositeArm is handed the generator's true (mean, variance, lengthscale),
+    which no practitioner has.  This fits them by maximum likelihood exactly as
+    the direct arm does, so the two models are equally ignorant and the only
+    difference between them is that one models h and applies the known g.  That
+    is the comparison the method is actually about; on identity, where f is a
+    GP and no model-shape difference exists, it closes the gap to nothing.
+    """
+
+    name = "composite_mle"
+
+    def __init__(self, problem):
+        self.problem = problem
+
+    def fit(self, X, H, y):
+        del y
+        self.models = []
+        for j in range(H.shape[-1]):
+            m = SingleTaskGP(X, H[:, j:j + 1], outcome_transform=Standardize(m=1))
+            try:
+                fit_gpytorch_mll(ExactMarginalLogLikelihood(m.likelihood, m))
+            except Exception:
+                m.eval()
+            self.models.append(m)
+
+    def prepare_samples(self, n: int, seed: int):
+        self.n, self.seed = n, seed
+
+    def sample_f(self, Xc):
+        draws = []
+        for j, m in enumerate(self.models):
+            # differentiable: optimize_acq refines candidates by gradient ascent
+            post = m.posterior(Xc)
+            gen = torch.Generator().manual_seed(self.seed * 131 + j)
+            eps = torch.randn(self.n, Xc.shape[0], generator=gen, dtype=DTYPE)
+            draws.append(post.mean.squeeze(-1).unsqueeze(0)
+                         + post.variance.clamp_min(1e-12).sqrt().squeeze(-1).unsqueeze(0) * eps)
+        return self.problem.g(torch.stack(draws, dim=-1))
+
+    def diagnostics(self):
+        return {"u_lost": 0.0}
+
+
+ARMS = {"direct": DirectArm, "composite": CompositeArm,
+        "composite_mle": FittedCompositeArm, "latent": LatentArm,
+}

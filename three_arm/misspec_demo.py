@@ -113,6 +113,7 @@ def main():
     ap.add_argument("--n-test", type=int, default=20)
     ap.add_argument("--splits", type=int, default=15)
     ap.add_argument("--draws", type=int, default=4)
+    ap.add_argument("--kernel", default="rbf", choices=["rbf", "matern"])
     a = ap.parse_args()
     torch.set_default_dtype(DTYPE)
 
@@ -126,7 +127,8 @@ def main():
     for m in a.maps:
         D, I, O, OI, OO = [], [], [], [], []
         for draw in range(a.draws):
-            p = make_problem(m, d=6, lengthscale=0.5, draw_seed=draw)
+            p = make_problem(m, d=6, lengthscale=0.5, draw_seed=draw,
+                             kernel=a.kernel)
             for s in range(a.splits):
                 d_, i_, o_, oi_, oo_ = one_split(p, a.n_train, a.n_test, 1000 * draw + s)
                 D.append(d_); I.append(i_); O.append(o_); OI.append(oi_); OO.append(oo_)

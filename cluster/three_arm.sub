@@ -29,7 +29,10 @@ SEEDS="${SEEDS:-10}"
 BUDGET="${BUDGET:-40}"
 ENV_PATH="${ENV_PATH:-$HOME/morbo-env}"
 OUT="${OUT:-three_arm/results}"
-DRAW="${DRAW:-0}"    # which random function h to draw
+DRAW="${DRAW:-0}"      # which random function h to draw
+KERNEL="${KERNEL:-matern}"            # matern 5/2 is BoTorch's default, so
+                                      # both arms are correctly specified about h
+ARMS="${ARMS:-direct composite_mle}"  # composite_mle fits its own hyperparameters
 EXTRA="${EXTRA:-}"   # extra run.py flags, e.g. EXTRA=--no-shortcuts
 
 cd "$SLURM_SUBMIT_DIR"
@@ -44,7 +47,7 @@ conda activate "$ENV_PATH"
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 
-echo "[$(date)] host=$(hostname) map=$MAP seeds=$SEEDS budget=$BUDGET draw=$DRAW out=$OUT extra=${EXTRA:-none}"
+echo "[$(date)] host=$(hostname) map=$MAP seeds=$SEEDS budget=$BUDGET draw=$DRAW kernel=$KERNEL arms=$ARMS out=$OUT extra=${EXTRA:-none}"
 # EXTRA is deliberately unquoted so it can carry several flags.
 python three_arm/run.py --maps "$MAP" --seeds "$SEEDS" --budget "$BUDGET" \
   --out "$OUT" $EXTRA

@@ -412,10 +412,13 @@ class Problem:
     """
 
     def __init__(self, map_name: str, d: int = 6, lengthscale: float = 0.5,
-                 draw_seed: int = 0, n_ref: int = 65536, n_features: int = 1024):
+                 draw_seed: int = 0, n_ref: int = 65536, n_features: int = 1024,
+                 kernel: str = "rbf"):
         self.outer = OUTER_MAPS[map_name]
         self.name, self.d, self.lengthscale = map_name, d, lengthscale
-        self.draws = [RFFDraw(d, lengthscale, seed=1000 * draw_seed + j, n_features=n_features)
+        self.kernel = kernel
+        self.draws = [RFFDraw(d, lengthscale, seed=1000 * draw_seed + j,
+                              n_features=n_features, kernel=kernel)
                       for j in range(self.outer.k)]
         ref = SobolEngine(d, scramble=True, seed=31337).draw(n_ref).to(DTYPE)
         raw = self.outer.fn(self.h(ref))

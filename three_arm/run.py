@@ -57,6 +57,7 @@ class Config:
     keep: int = 200
     thin: int = 2
     shortcuts: bool = True
+    kernel: str = "matern"
 
 
 # --------------------------------------------------------------------------
@@ -140,7 +141,8 @@ def paired(a, b):
 
 
 def run_condition(map_name: str, arms, cfg: Config, out_dir: Path, quiet: bool = False) -> dict:
-    problem = make_problem(map_name, d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed)
+    problem = make_problem(map_name, d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed,
+                           kernel=cfg.kernel)
     if not quiet:
         print(f"\n== {problem.describe()}   (f_min ~ {problem.f_min:.4f})")
     results = {a: [] for a in arms}
@@ -161,6 +163,10 @@ def run_condition(map_name: str, arms, cfg: Config, out_dir: Path, quiet: bool =
         summary["observe_h"] = paired(final["latent"], final["composite"])
     if {"direct", "composite"} <= set(arms):
         summary["total"] = paired(final["direct"], final["composite"])
+    if {"direct", "composite_mle"} <= set(arms):
+        # the arm that fits its own hyperparameters, so Direct and Composite
+        # are equally ignorant and only the model shape differs
+        summary["gain_mle"] = paired(final["direct"], final["composite_mle"])
     summary["n"], summary["draws"] = cfg.seeds, 1
     if "latent" in arms:
         summary["mean_u_lost"] = sum(sum(r["u_lost"]) / len(r["u_lost"]) for r in results["latent"]) / cfg.seeds
@@ -185,13 +191,14 @@ def _worker(map_name: str, arms, cfg: Config, out: str) -> dict:
 
 def print_table(rows):
     print("\n" + "=" * 110)
-    print(f"{'map':14s} {'direct':>8s} {'comp':>8s} {'latent':>8s}   {'know g':>15s} {'observe h':>15s} {'U_lost':>8s} "
+    print(f"{'map':14s} {'direct':>8s} {'comp':>8s} {'cmp-mle':>8s}   {'gain':>15s} {'observe h':>15s} {'U_lost':>8s} "
           f"{'runs':>5s} {'drw':>4s}")
     print("-" * 110)
     for name, s in rows:
         fmt = lambda key: (f"{s[key][0]:+6.3f}+/-{s[key][1]:5.3f}" if key in s else "      -      ")
+        gain_key = 'gain_mle' if 'gain_mle' in s else 'total'
         print(f"{name:14s} {s.get('direct', float('nan')):8.3f} {s.get('composite', float('nan')):8.3f} "
-              f"{s.get('latent', float('nan')):8.3f}   {fmt('know_g'):>15s} {fmt('observe_h'):>15s} "
+              f"{s.get('composite_mle', float('nan')):8.3f}   {fmt(gain_key):>15s} {fmt('observe_h'):>15s} "
               f"{s.get('mean_u_lost', float('nan')):8.4f} {s.get('n', 0):5d} {s.get('draws', 1):4d}")
     print("=" * 110)
     print("final log10 regret (lower is better); differences are paired over seeds, > 0 favours the second arm")
@@ -233,7 +240,8 @@ def run_checks(cfg: Config) -> None:
                                    thin=5, shortcuts=False, seed=seed)
 
     print("[1] linear map (sum): sampler vs exact Gaussian posterior")
-    p = make_problem("sum", d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed)
+    p = make_problem("sum", d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed,
+                           kernel=cfg.kernel)
     y = p.f(X)
     arm = mk(p, 1)
     t0 = time.time()
@@ -250,7 +258,8 @@ def run_checks(cfg: Config) -> None:
           f"   ({time.time() - t0:.1f}s)   -> {'PASS' if ok1 else 'CHECK'}")
 
     print("[2] invertible map (exp_b1): true h should sit inside the sampler's posterior")
-    p = make_problem("exp_b1", d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed)
+    p = make_problem("exp_b1", d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed,
+                           kernel=cfg.kernel)
     y = p.f(X)
     arm = mk(p, 2)
     arm.fit(X, None, y)
@@ -270,7 +279,8 @@ def run_checks(cfg: Config) -> None:
     print(f"    {'map':14s} {'U_lost':>9s} {'R-hat':>7s} {'disagree':>9s} {'move acc':>9s}")
     u_vals = []
     for name in GROUPS["sweep"] + ["abs"]:
-        p = make_problem(name, d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed)
+        p = make_problem(name, d=cfg.d, lengthscale=cfg.lengthscale, draw_seed=cfg.draw_seed,
+                           kernel=cfg.kernel)
         arm = mk(p, 3)
         arm.fit(X, None, p.f(X))
         u_vals.append(arm.stats["u_lost"])
@@ -296,6 +306,8 @@ def main():
     ap.add_argument("--n0", type=int, default=Config.n0)
     ap.add_argument("--d", type=int, default=Config.d)
     ap.add_argument("--noise", type=float, default=Config.noise)
+    ap.add_argument("--kernel", default=Config.kernel, choices=["rbf", "matern"],
+                    help="kernel h is drawn from; matern 5/2 is BoTorch's default")
     ap.add_argument("--draw-seed", type=int, default=Config.draw_seed,
                     help="which random function h to draw; vary it so conclusions "
                          "are not a property of one sampled function")
@@ -310,6 +322,7 @@ def main():
 
     cfg = Config(d=args.d, n0=args.n0, budget=args.budget, seeds=args.seeds,
                  noise=args.noise, shortcuts=not args.no_shortcuts,
+                 kernel=args.kernel,
                  draw_seed=args.draw_seed)
     torch.set_default_dtype(DTYPE)
 
