@@ -128,8 +128,23 @@ def run_bo(problem, arm_name: str, seed: int, cfg: Config) -> dict:
             "final_stats": arm.diagnostics()}
 
 
+# Floor on the regret before taking the log.  It was 1e-8, which bound on 13
+# of 40 shiftsq_c0 runs and 11 of 40 root4 runs -- where g is quadratic or
+# quartic at its optimum, f - f_min falls off as the square of the distance in
+# h, so runs genuinely reach 1e-12 and the floor was discarding real
+# resolution and compressing exactly the gaps we are trying to measure.  The
+# reference optimum is accurate to ~1e-15 (see Problem._estimate_min), and f
+# itself is O(1) in double precision, so 1e-14 is above numerical noise.
+REGRET_FLOOR = 1e-14
+_clamped = [0, 0]          # [runs at the floor, runs total]
+
+
 def log_regret(value: float, f_min: float) -> float:
-    return math.log10(max(value - f_min, 1e-8))
+    gap = value - f_min
+    _clamped[1] += 1
+    if gap <= REGRET_FLOOR:
+        _clamped[0] += 1
+    return math.log10(max(gap, REGRET_FLOOR))
 
 
 def paired(a, b):
@@ -202,6 +217,9 @@ def print_table(rows):
               f"{s.get('mean_u_lost', float('nan')):8.4f} {s.get('n', 0):5d} {s.get('draws', 1):4d}")
     print("=" * 110)
     print("final log10 regret (lower is better); differences are paired over seeds, > 0 favours the second arm")
+    if _clamped[0]:
+        print(f"WARNING: {_clamped[0]} of {_clamped[1]} runs sit at the "
+              f"{REGRET_FLOOR:g} regret floor, so their gains are lower bounds")
 
 
 # --------------------------------------------------------------------------

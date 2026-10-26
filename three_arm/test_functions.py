@@ -46,10 +46,22 @@ def _spectral_sample(d, n_features, lengthscale, kernel, gen):
     z = torch.randn(n_features, d, generator=gen, dtype=DTYPE)
     if kernel == "rbf":
         return z / lengthscale
+    # u ~ Gamma(nu, nu), so omega = z / (lengthscale * sqrt(u)) is Student-t
+    # with 2*nu degrees of freedom.  torch.distributions.Gamma.sample() takes
+    # no generator and reads the global RNG, so using it made every Matern
+    # problem a DIFFERENT random function on each construction -- the draw
+    # seed stopped selecting anything, maps no longer shared an h, and a
+    # stored f_min could not be recomputed afterwards.
+    #
+    # Sampling it from the seeded generator instead, via the decomposition
+    #     Gamma(2.5, 1) = Exp(1) + Exp(1) + Gamma(0.5, 1),
+    # with Exp(1) = -log U and Gamma(0.5, 1) = Z^2 / 2.  Exact, and only needs
+    # rand/randn, both of which accept the generator.
     nu = 2.5
-    u = torch.distributions.Gamma(torch.tensor(nu, dtype=DTYPE),
-                                  torch.tensor(nu, dtype=DTYPE)).sample(
-        (n_features, 1))
+    u1 = torch.rand(n_features, 1, generator=gen, dtype=DTYPE).clamp_min(1e-300)
+    u2 = torch.rand(n_features, 1, generator=gen, dtype=DTYPE).clamp_min(1e-300)
+    zh = torch.randn(n_features, 1, generator=gen, dtype=DTYPE)
+    u = (-u1.log() - u2.log() + 0.5 * zh.square()) / nu
     return z / (lengthscale * u.sqrt())
 
 
@@ -453,9 +465,27 @@ class Problem:
         return [dr.prior_var for dr in self.draws]
 
     def _estimate_min(self, ref: torch.Tensor, n_starts: int = 20, steps: int = 200) -> float:
+        """Reference optimum, used only as the subtrahend in the regret.
+
+        Descending f = g(h(x)) by gradient fails wherever g is flat or kinked:
+        clip and relu have zero gradient over a whole region, so Adam never
+        leaves its starting point and the estimate stays at the best reference
+        sample.  That understates the optimum, and a BO run that then finds
+        something better produces a NEGATIVE regret -- which is how clip_c2
+        came out at -1.4e-2.
+
+        For a single intermediate there is no need to differentiate g at all.
+        The domain is connected and h continuous, so h([0,1]^d) is an interval,
+        and
+            min_x g(h(x)) = min over that interval of g,
+        which a dense grid plus local refinement finds exactly, for any g.
+        Only h has to be optimised by gradient, and h is a smooth RFF sum.
+        """
         with torch.no_grad():
             vals = torch.cat([self.f(ref[i:i + _CHUNK]) for i in range(0, len(ref), _CHUNK)])
         best = vals.min().item()
+
+        # gradient polish on f: still the only option when k > 1
         X = ref[vals.argsort()[:n_starts]].clone().requires_grad_(True)
         opt = torch.optim.Adam([X], lr=0.01)
         for _ in range(steps):
@@ -465,7 +495,43 @@ class Problem:
             with torch.no_grad():
                 X.clamp_(0.0, 1.0)
         with torch.no_grad():
-            return min(best, self.f(X).min().item())
+            best = min(best, self.f(X).min().item())
+
+        if self.outer.k == 1:
+            best = min(best, self._min_over_h_range(ref))
+        return best
+
+    def _min_over_h_range(self, ref: torch.Tensor, grid: int = 400001,
+                          n_starts: int = 20, steps: int = 400) -> float:
+        """min of g over the interval h actually reaches, found on a grid."""
+        with torch.no_grad():
+            hv = torch.cat([self.h(ref[i:i + _CHUNK])[:, 0]
+                            for i in range(0, len(ref), _CHUNK)])
+        lo, hi = float(hv.min()), float(hv.max())
+        # push the endpoints out by gradient on h itself, which is smooth
+        for sign in (1.0, -1.0):
+            idx = (hv * sign).argsort()[:n_starts]
+            X = ref[idx].clone().requires_grad_(True)
+            opt = torch.optim.Adam([X], lr=0.01)
+            for _ in range(steps):
+                opt.zero_grad()
+                (sign * self.h(X)[:, 0]).sum().backward()
+                opt.step()
+                with torch.no_grad():
+                    X.clamp_(0.0, 1.0)
+            with torch.no_grad():
+                v = self.h(X)[:, 0]
+                lo, hi = min(lo, float(v.min())), max(hi, float(v.max()))
+
+        with torch.no_grad():
+            z = torch.linspace(lo, hi, grid, dtype=DTYPE)
+            gz = self.g(z.unsqueeze(-1))
+            j = int(gz.argmin())
+            # refine on the two neighbouring cells
+            a = z[max(j - 1, 0)].item()
+            b = z[min(j + 1, grid - 1)].item()
+            zf = torch.linspace(a, b, 20001, dtype=DTYPE)
+            return min(float(gz[j]), float(self.g(zf.unsqueeze(-1)).min()))
 
     def describe(self) -> str:
         o = self.outer
