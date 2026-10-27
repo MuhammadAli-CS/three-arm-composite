@@ -1,16 +1,18 @@
 \begin{table}[H]
 \centering
 \small
-\caption{Bijective maps: final $\log_{10}$ regret over 20 runs, mean $\pm$ SD. Gain is Direct $-$ Composite, so positive favours Composite. $p$ is a one-sided paired $t$-test.}
+\caption{Bijective outer maps. Gain is Direct $-$ Composite in final $\log_{10}$ regret, so positive favours Composite; $p$ is a one-sided paired $t$-test of whether that gain exceeds zero, over the $20$ runs. Only \texttt{shiftsq\_c3} shows an effect, and Section~\ref{sec:plateau} explains why it is not a counterexample.}
 \label{tab:bij}
-\begin{tabular}{l r r r r}
+\begin{tabular}{l c r r r r}
 \toprule
-Problem & Direct & Composite & Gain & $p$ \\
+Problem & $\bar n$ & Direct & Composite & Gain & $p$ \\
 \midrule
-\texttt{identity} & $-1.789\pm1.323$ & $-2.198\pm1.176$ & $+0.409\pm1.138$ & 0.062 \\
-\texttt{exp\_b1} & $-2.868\pm0.378$ & $-3.493\pm1.474$ & $+0.625\pm1.309$ & 0.023 \\
-\texttt{sinh\_b1} & $-0.490\pm1.133$ & $-0.933\pm1.105$ & $+0.444\pm1.126$ & 0.047 \\
-\texttt{shiftsq\_c3} & $-4.824\pm1.282$ & $-6.571\pm1.762$ & $+1.747\pm1.482$ & $<$0.001 \\
+\texttt{shiftsq\_c3} & 1.01 & $-4.694\pm1.611$ & $-7.053\pm2.174$ & $\mathbf{+2.359}\pm2.053$ & $<$0.001 \\
+\texttt{exp\_b1} & 1.00 & $-2.594\pm0.425$ & $-2.742\pm0.627$ & $\mathbf{+0.148}\pm0.519$ & 0.109 \\
+\texttt{identity} & 1.00 & $-1.027\pm0.793$ & $-1.114\pm0.606$ & $\mathbf{+0.087}\pm0.693$ & 0.291 \\
+\texttt{mono3} & 1.00 & $+0.093\pm0.491$ & $+0.012\pm0.445$ & $\mathbf{+0.081}\pm0.494$ & 0.235 \\
+\texttt{sinh\_b1} & 1.00 & $+0.245\pm0.503$ & $+0.164\pm0.401$ & $\mathbf{+0.081}\pm0.458$ & 0.220 \\
+\texttt{mono5} & 1.00 & $+0.745\pm0.687$ & $+0.793\pm0.356$ & $\mathbf{-0.048}\pm0.701$ & 0.618 \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -238,7 +238,8 @@ def fig_censoring(S, path):
 def fig_curves(final_dir, path, maps=("clip_c2", "relu", "shiftsq_c0")):
     """Convergence of the three arms, median over pooled runs."""
     fig, axes = plt.subplots(1, len(maps), figsize=(9.6, 3.1), sharex=True)
-    colours = {"direct": "0.45", "composite": C_KNOW, "latent": C_OBS}
+    colours = {"direct": "0.45", "composite": C_KNOW,
+               "composite_mle": C_KNOW, "latent": C_OBS}
     for ax, name in zip(axes, maps):
         runs = collections.defaultdict(list)
         fmin = None
@@ -833,7 +834,7 @@ def fig_mobo(json_main, json_sinh, path):
 
 
 
-def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
+def fig_bo_curves(results_dir, path, arms=("direct", "composite_mle"),
                   exclude=("cos_w4",), inj_cols=2, non_cols=4):
     """Convergence per problem, bijective block on the left of a vertical rule.
 
@@ -844,6 +845,7 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
     import glob, json, os, collections, math
     import matplotlib.gridspec as gridspec
     from three_arm.injectivity import summarize
+    from three_arm.run import REGRET_FLOOR
 
     runs = collections.defaultdict(lambda: collections.defaultdict(list))
     for fp in sorted(glob.glob(os.path.join(results_dir, "*.json"))):
@@ -853,18 +855,19 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
         fm = blob["f_min"]
         for arm, rs in blob["results"].items():
             runs[blob["map"]][arm] += [
-                [math.log10(max(v - fm, 1e-8)) for v in r["best"]] for r in rs]
+                [math.log10(max(v - fm, REGRET_FLOOR)) for v in r["best"]] for r in rs]
 
     def is_inj(m):
         o = OUTER_MAPS[m]
-        if o.kind in ("identity", "invertible"):
-            return True
         if o.k > 1:
             return False
+        # Trust the measured fiber rather than the declared kind: shiftsq_c3 is
+        # a parabola whose vertex sits where h almost never goes, so it is
+        # effectively bijective, while the kind string calls it lossy.
         r = summarize(m)
         # an infinite fiber on a set of positive measure is as non-injective
         # as it gets, however few crossings the counter finds
-        return r["frac_infinite"] < 1e-6 and r["nbar"] < 1.05
+        return r["frac_infinite"] <= 0.01 and r["nbar"] < 1.02
 
     inj = [m for m in OUTER_MAPS if m in runs and is_inj(m)]
     non = [m for m in OUTER_MAPS if m in runs and not is_inj(m)]
@@ -874,7 +877,8 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite"),
 
     fig = plt.figure(figsize=(2.45 * ncols, 2.1 * nrows))
     gs = gridspec.GridSpec(nrows, ncols, figure=fig, wspace=0.42, hspace=0.55)
-    colours = {"direct": "0.45", "composite": C_KNOW, "latent": C_OBS}
+    colours = {"direct": "0.45", "composite": C_KNOW,
+               "composite_mle": C_KNOW, "latent": C_OBS}
 
     def panel(ax, name):
         for arm in arms:

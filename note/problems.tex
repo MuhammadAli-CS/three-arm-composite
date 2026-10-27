@@ -7,7 +7,8 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{float}
 
-\title{\bfseries Composite versus Direct: the problems, and what the numbers say}
+\title{\bfseries When does modelling the intermediate help?\\[2pt]
+\large Composite versus Direct, with both surrogates fitting their own hyperparameters}
 \date{}
 \author{}
 
@@ -15,14 +16,46 @@
 \maketitle
 \vspace{-3em}
 
+\section*{Summary}
+
+Every problem here is $f(x)=g(h(x))$ with $h$ expensive and unknown and $g$
+cheap and known. Two surrogates compete: \textbf{Direct} puts a GP on $f$;
+\textbf{Composite} puts a GP on $h$ and pushes it through $g$.
+
+Three findings, in order of how much they change the picture.
+
+\begin{enumerate}\itemsep3pt
+\item \textbf{Composite's advantage on bijective maps was an artefact of the
+setup, not a property of the problem.} An earlier version of this document
+reported that Composite wins almost everywhere, bijective or not. In that grid
+Composite was handed the generator's true kernel while Direct had to estimate
+one, and $h$ was drawn from an RBF kernel while both surrogates assumed
+Mat\'ern. Remove both advantages and the bijective column collapses: five of
+six bijective maps now show no effect at all. On \texttt{identity} the gain
+fell from $+0.409$ to $+0.087\pm0.155$.
+
+\item \textbf{With that fixed, bijectivity does predict the gain.} All ten
+non-bijective maps gain, every one significant at $0.05$, by up to $3.4$
+orders of magnitude. Five of six bijective maps do not.
+
+\item \textbf{But information is not the mechanism.} The number of preimages
+$\bar n$ has essentially no correlation with the size of the gain
+($r=-0.12$). What does predict it is how \emph{flat $g$ is at its own
+optimum} ($r=+0.78$). The two come apart cleanly on \texttt{shiftsq\_c3},
+which is bijective in practice and still gains $+2.36$, and on \texttt{sum},
+which destroys information and gains nothing.
+\end{enumerate}
+
+\noindent The rest of the document gives the setup, the problems, the numbers
+and the evidence for each claim.
+
 \section{The setup}
 
-Every problem has the form
 \[
 f(x) \;=\; g\bigl(h(x)\bigr), \qquad x \in [0,1]^6 ,
 \]
 with $h$ the \emph{intermediate} (expensive, unknown) and $g$ the \emph{outer
-map} (cheap, known in closed form). Two surrogates compete:
+map} (cheap, known in closed form).
 
 \begin{center}
 \begin{tabular}{llll}
@@ -35,8 +68,10 @@ map} (cheap, known in closed form). Two surrogates compete:
 \end{tabular}
 \end{center}
 
-\noindent Both get the same inputs, the same budget, the same initial design
-and the same acquisition function. Only the surrogate differs.
+\noindent Both get the same inputs, the same budget of $45$ evaluations, the
+same initial design and the same acquisition function, and \textbf{both fit
+their own kernel hyperparameters by maximum likelihood}. That last point is
+what changed. Only the surrogate differs.
 
 \subsection{The intermediates}
 
@@ -45,185 +80,254 @@ Gaussian process family the surrogates assume, built from random Fourier
 features:
 \[
 h(x)=\sqrt{\tfrac{2}{M}}\sum_{m=1}^{M} a_m\cos(\omega_m^\top x + b_m),
-\qquad a_m\sim\mathcal N(0,1),\ b_m\sim U(0,2\pi),\ \omega_m\sim\mathcal N(0,\ell^{-2}I),
+\qquad a_m\sim\mathcal N(0,1),\ b_m\sim U(0,2\pi),
 \]
-with $M=1024$ and $\ell=0.5$, then standardised so it has mean $0$ and
-standard deviation $1$.
+with $M=1024$ and $\ell=0.5$, then standardised to mean $0$ and standard
+deviation $1$.
 
-This matters for the comparison. If $h$ were something like Rastrigin,
-Composite might win or lose because a GP happens to model \emph{that function}
-well or badly, and we would learn nothing about $g$. Drawing $h$ from the
-surrogate's own prior removes that: Composite's model of $h$ is correct by
-construction, so every remaining difference is attributable to the outer map.
+The frequencies $\omega_m$ are drawn from the kernel's spectral density. For
+RBF that is Gaussian; for Mat\'ern-$\nu$ it is a multivariate Student-$t$ with
+$2\nu$ degrees of freedom, which is what makes Mat\'ern draws rougher.
+\textbf{We use Mat\'ern-$5/2$, because that is BoTorch's default kernel.} With
+an RBF draw the surrogates are merely close to correct about $h$; with a
+Mat\'ern draw they are exactly correct, and the comparison is no longer
+confounded by a mismatch that happens to hurt one arm more than the other.
 
-Standardising also puts the mean at zero, so $h$ takes both signs. Without
-that, $h^2$ would be injective over the region actually visited and the whole
-information question would be empty.
+Drawing $h$ from the surrogate's own prior is the point of the design. If $h$
+were Rastrigin, Composite might win or lose because a GP models \emph{that
+function} well or badly, and we would learn nothing about $g$. Here
+Composite's model of $h$ is correct by construction, so every remaining
+difference is attributable to the outer map. Standardising puts the mean at
+zero so $h$ takes both signs; without that, $h^2$ would be injective over the
+visited region and the question would be empty.
 
-\paragraph{Range.} Over $[0,1]^6$, $h$ reaches about $[-4.3,+3.8]$: sd exactly
-$1$, with $5\%$ of the domain beyond $|h|>2$ and $0.3\%$ beyond $|h|>3$. The
-range saturates --- sampling a million points finds no more than sampling ten
-thousand --- because it is a property of the function, not of the sampling.
-That is why root placements at $\pm2$ sit inside the bulk while a vertex at
-$h=3$ sits at the edge of what is reachable.
+\paragraph{Range.} Over $[0,1]^6$, $h$ reaches roughly $[-4.3,+3.8]$, with
+$5\%$ of the domain beyond $|h|>2$ and $0.3\%$ beyond $|h|>3$. The range
+saturates --- sampling a million points finds no more than ten thousand ---
+because it is a property of the function, not the sampling. That is why a root
+at $\pm2$ sits inside the bulk while a vertex at $h=3$ sits at the edge of what
+is reachable, which turns out to matter a great deal.
 
-\paragraph{Several intermediates.} When $k>1$, each $h_j$ is an independent
-draw with its own seed ($1000\times\text{draw} + j$); measured correlation
-between them is $-0.10$, i.e.\ zero. Maps sharing a draw seed share the same
-$h_1$, so switching $g$ never changes the underlying functions.
+\paragraph{Several intermediates.} When $k>1$ each $h_j$ is an independent
+draw with its own seed. Maps sharing a draw seed share the same $h_1$, so
+switching $g$ never changes the underlying function.
+
+\subsection{What is measured}
+
+\paragraph{Regret.} Simple regret $R_T=f_{\text{best}}(T)-f^\star$ after
+$T=45$ evaluations, reported as $\log_{10}R_T$; lower is better. Because it is
+a log, a \emph{gain} of $+2$ means Composite's final regret is $100$ times
+smaller. The reference optimum $f^\star$ is computed exactly for $k=1$: the
+domain is connected and $h$ continuous, so $h([0,1]^6)$ is an interval and
+$\min_x g(h(x))$ is the minimum of $g$ over that interval, which a dense grid
+finds for any $g$ --- including the ones a gradient method cannot descend.
+
+\paragraph{$\bar n$.} The average number of $h$ values that could have produced
+the observed $y$,
+\[
+\bar n=\mathbb E\bigl[\,|g^{-1}(y)|\,\bigr],
+\]
+\emph{measured} by counting crossings of $g(z)-y$ over the range $h$ actually
+reaches, not inferred from the algebra. The two come apart:
+\texttt{shiftsq\_c3} is a parabola, two-to-one on paper, but its vertex sits at
+$h=3$ where $h$ almost never goes, so in practice $\bar n=1.01$.
+
+\paragraph{The $p$-value.} A one-sided paired $t$-test on the per-run
+difference, asking whether Composite's mean regret is lower. Paired because
+both arms share an initial design within each run, so the large variation
+between designs cancels. $20$ runs per problem: $4$ independent function draws
+$\times$ $5$ initial designs.
+
+\paragraph{The spread.} Quoted as $\pm$ one standard deviation across the $20$
+runs, not a standard error --- it describes how much a single run varies. The
+standard error is roughly $1/\sqrt{20}$ of it.
+
+\section{The problems}
 
 \input{problems_table.tex}
 
-\section{What $\bar n$ means}
+\subsection{What is excluded, and why}
 
-$\bar n$ is the average number of $h$ values that could have produced the $y$
-you observed:
-\[
-\bar n=\mathbb E\bigl[\,|g^{-1}(y)|\,\bigr].
-\]
-$\bar n=1$ means $y$ determines $h$ --- the map is injective, and observing
-$h$ tells you nothing new. $\bar n = 2$ means a typical observation leaves two
-candidates.
+Four maps are kept out of the headline comparison.
 
-It is \emph{measured}, by counting crossings of $g(z)-y$ over the range $h$
-actually reaches, not inferred from the algebra. The two come apart:
-\texttt{shiftsq\_c3} is a parabola, and so two-to-one on paper, but its vertex
-sits at $h=3$ where $h$ almost never goes, so in practice $\bar n=1.01$ and it
-behaves as a bijection.
+\begin{itemize}\itemsep2pt
+\item \texttt{relu}, \texttt{abs} and \texttt{clip\_c2} are not everywhere
+differentiable --- a kink or a constant piece --- so they fall outside the
+smooth setting the argument assumes.
+\item \texttt{cos\_w4} is deferred for separate investigation.
+\item \texttt{root1} is affine and therefore identical to \texttt{identity}
+after normalisation; it produces the same number to three decimals and is
+folded in.
+\end{itemize}
 
-The same measurement needs care with flat regions. $-\max(h,0)$ sends the
-entire half-line $h\le0$ --- about half the domain --- to a single value, so
-those observations have an \emph{infinite} preimage set. A crossing counter
-reports $1$ there, because a flat region never crosses. \texttt{relu} is
-therefore marked $\infty$ and grouped with the non-bijective maps.
+\noindent This must be stated plainly: \textbf{the three non-smooth maps are
+exactly the three non-bijective maps with no effect.} Excluding them takes the
+non-bijective group from ten significant rows out of thirteen to ten out of
+ten. The criterion is defensible on its own terms, decided by smoothness of
+$g$ rather than by the result, but it does flatter the grouping, so both
+versions are reported.
+
+\input{excluded_table.tex}
 
 \section{Results}
 
 \input{bij_table.tex}
 \input{nonbij_table.tex}
 
-\subsection{How to read these}
-
-\paragraph{The metric.} Simple regret, $R_T=f_{\text{best}}(T)-f^\star$, after
-$T=45$ evaluations, reported as $\log_{10}R_T$. Lower is better. Because it is
-a log, the \emph{gain} is a ratio: a gain of $+2$ means Composite's final
-regret is $100$ times smaller.
-
-\paragraph{The spread.} Quoted as $\pm$ one standard deviation across the $20$
-runs, not a standard error --- it describes how much a single run varies, not
-how precisely the mean is known. The standard error is roughly $1/\sqrt{20}$
-of it.
-
-\paragraph{The $p$-value.} A one-sided paired $t$-test, asking whether
-Composite's mean regret is lower. Paired because both arms share an initial
-design within each run, so the comparison is run by run and the large
-variation between designs cancels.
-
-\paragraph{A caution.} These distributions are skewed --- several standard
-deviations exceed their own means --- so a $t$-test can be carried by a few
-large wins. On \texttt{relu}, Composite actually loses $11$ of $20$ runs while
-still posting a positive mean gain. A $p$-value near $0.05$ on a row with a
-large SD should be read as suggestive rather than settled.
-
-\paragraph{The $-8$ floor.} $\log_{10}$ regret is clamped at $-8$. Four
-\texttt{shiftsq} rows have Composite at $-7.7$ to $-7.9$, so they are pressed
-against it and their gains are lower bounds. The reference optimum is known to
-about $10^{-15}$, so the clamp is discarding real resolution and should be
-lowered.
-
-\section{Convergence}
+\noindent Every non-bijective map gains; one bijective map does. The mean gain
+is $+1.98$ for the non-bijective group and $+0.45$ for the bijective group,
+and that $+0.45$ is almost entirely \texttt{shiftsq\_c3}: without it the
+bijective mean is $+0.07$, which is nothing.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\linewidth]{../figures/bo_curves.pdf}
+\includegraphics[width=\linewidth]{../figures/bo_curves_matern.pdf}
 \caption{Median $\log_{10}$ regret against evaluation, interquartile band
-shaded. Bijective maps left of the rule, non-bijective right. Composite wins
-throughout \emph{both} sides, which is the central observation: the advantage
-is not information, because on the left there is none to be had.}
+shaded. Bijective maps left of the rule, non-bijective right. The two blocks
+now look different, which is the change from the earlier grid: on the left the
+curves lie on top of each other, on the right Composite separates within the
+first ten evaluations. \texttt{shiftsq\_c3}, bottom left, is the exception
+that Section~\ref{sec:plateau} explains.}
 \end{figure}
 
-\section{Why Direct loses even when nothing is hidden: $z^3$}
+\subsection{The linear control}
 
-\texttt{mono3}, $g(h)=h^3$, is strictly increasing. It is bijective, so
-observing $h$ conveys nothing that $y$ does not already determine. Composite
-should have no advantage --- and it has a large one. A plain regression
-experiment, with no optimisation anywhere, shows why.
+\texttt{sum}, $g(h_1,h_2)=h_1+h_2$, is the decisive row. Observing
+$y=h_1+h_2$ tells you the sum but not the split, so information genuinely
+\emph{is} destroyed --- and yet the gain is $-0.230$, in Direct's favour.
 
-Eighty training points, twenty held out, $30$ fits per map. RMSE is divided by
-the standard deviation of whatever is being predicted, so $1.0$ means no
-better than guessing the mean.
+The reason is that a linear combination of Gaussian processes is a Gaussian
+process. Direct's model is therefore correctly specified, and it loses
+nothing by not seeing the pieces. \textbf{Information loss with no
+misspecification buys Composite nothing.} Whatever drives the gain elsewhere,
+it is not the mere fact that $g$ is many-to-one.
 
-\begin{table}[H]
-\centering\small
-\caption{Held-out RMSE, normalised. ``Fitted'' means both models estimate
-their hyperparameters by maximum likelihood, so neither is given anything the
-other lacks.}
-\begin{tabular}{l r r r}
-\toprule
- & Direct & \multicolumn{2}{c}{Composite (fitted)} \\
-\cmidrule(lr){3-4}
-Problem & on $f$ & on $h$ (inner) & on $f$ (outer) \\
-\midrule
-\texttt{identity} & $0.588$ & $0.588$ & $0.588$ \\
-\texttt{mono3} $=h^3$ & $\mathbf{1.071}$ & $0.588$ & $\mathbf{0.817}$ \\
-\texttt{root3} & $1.287$ & $0.588$ & $0.962$ \\
-\texttt{shiftsq\_c0} $=h^2$ & $1.056$ & $0.588$ & $0.865$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+\section{Why bijectivity predicts the gain without being the cause}
+\label{sec:plateau}
+
+Two observations do not fit an information story.
+
+\paragraph{$\bar n$ does not order the gain.} Across the single-intermediate
+maps the correlation between $\bar n$ and the gain is $r=-0.12$ --- no
+relationship at all. \texttt{cos\_w2} has $\bar n=5.04$ and gains $+1.06$;
+\texttt{root2} has $\bar n=2.00$ and gains $+3.42$.
+
+\paragraph{\texttt{shiftsq\_c3} gains without being many-to-one.} It measures
+$\bar n=1.01$, so a typical observation determines $h$, and it still gains
+$+2.36$ --- the largest gain of any map outside the \texttt{root}/\texttt{shiftsq}
+families.
+
+\subsection{What does predict it}
+
+The quantity that works is how flat $g$ is \emph{at its own minimum}. Measure
+the plateau width: the fraction of $h$'s reachable range mapping to within
+$10^{-6}$ of $\min g$.
+
+\input{plateau_table.tex}
+
+\noindent The table separates into two blocks with nothing in between. Above
+the rule every map has a genuine plateau and the mean gain is $+2.05$; below
+it the width is at the grid resolution, meaning the minimum is a single point,
+and the mean gain is $+0.10$. The correlation is $r=+0.78$, against $r=-0.12$
+for $\bar n$.
+
+\subsection{The mechanism}
+
+Composite models $h$ accurately. Near a flat optimum a small error in $h$
+produces a very small error in $f$, so an accurate model of $h$ converts into
+enormous depth in objective space. Direct, looking at $f$ alone, sees a nearly
+constant region and cannot resolve within it. Where $g$ is steep at its
+optimum there is no such leverage and both arms do the same thing.
+
+This explains why bijectivity predicts the gain anyway. A bijective $g$ on an
+interval is monotone; a monotone function attains its minimum at an endpoint
+of the range; and an endpoint is generically a steep place, not a flat one. So
+
+\begin{center}
+bijective $\Rightarrow$ monotone $\Rightarrow$ optimum at an endpoint
+$\Rightarrow$ steep there $\Rightarrow$ no plateau $\Rightarrow$ no gain.
+\end{center}
+
+\noindent Bijectivity forecloses a flat optimum. That is why the prediction
+holds, and it is not an information argument at any step.
+
+\texttt{shiftsq\_c3} is the case that distinguishes the two explanations. Its
+fold sits at $h=3$, at the very edge of where $h$ reaches, so almost every
+observation lands on the monotone left branch and $\bar n\approx1$. But its
+\emph{minimum} is exactly at that fold, where $g$ is flat. $\bar n$ averages
+over the whole distribution of $y$, which is dominated by regions far from the
+optimum, so it misses the one place that matters. The plateau measure looks
+only at the optimum, and gets it right.
+
+\section{Regression error and optimisation gain come apart}
+
+The clearest evidence that this is not about model quality on average: fit
+both models by plain regression, with no optimiser anywhere, and compare the
+held-out error with the BO gain on the same problem.
+
+\input{rmse_table.tex}
 
 Three things to read off it.
 
-\paragraph{The inner RMSE is the same in every row, $0.588$.} It must be: $h$
-is literally the same function in all four, and Composite always fits the same
-GP to it. A useful check that nothing else is varying.
+\paragraph{The inner RMSE is $0.786$ in every row.} It must be: $h$ is
+literally the same function in all of them, and Composite always fits the same
+GP to it. A check that nothing else is varying.
 
-\paragraph{Direct scores above $1.0$ on all three nonlinear maps.} It is worse
-than predicting the mean of $f$. With eighty training points, a stationary GP
-placed on $h^3$ has negative skill.
+\paragraph{\texttt{mono3} shows real misspecification and no gain.} Direct
+scores $1.110$ --- worse than predicting the mean of $f$ --- while Composite
+scores $0.976$ on the same eighty points with its own fitted hyperparameters.
+Nothing is hidden from Direct: $h^3$ is bijective, so $y$ determines $h$
+exactly. The gap is purely that $f=g(h)$ is \emph{not a Gaussian process} when
+$g$ is nonlinear, so Direct is fitting the wrong shape of model. And the BO
+gain is $+0.081$, which is nothing. \textbf{Misspecification is real here and
+does not convert into optimisation performance.}
 
-\paragraph{Composite, on the same eighty points with the same fitted
-hyperparameters, scores $0.817$.} Nothing is being hidden from Direct: $h^3$ is
-bijective, so $y$ determines $h$ exactly. Both models estimate their own
-kernel. The only difference is that one models $h$ and applies the known cube
-afterwards.
+\paragraph{\texttt{shiftsq\_c3} shows no misspecification and a huge gain.}
+$0.794$ against $0.782$ --- the two models are equally good at predicting $f$
+on average --- and the BO gain is $+2.36$. \texttt{mono5} makes the same point
+from the other side: the largest regression gap in the table, $1.996$ against
+$1.570$, and a BO gain of $-0.048$.
 
-So Direct's failure is not a shortage of data and not a worse fit. It is that
-$f=g(h)$ is \emph{not a Gaussian process} when $g$ is nonlinear, and a GP
-placed directly on $f$ is the wrong shape of model. That is misspecification,
-isolated from information, in one table.
+\medskip
+\noindent So average predictive accuracy and optimisation gain are decoupled.
+What matters is resolution \emph{at the optimum}, which is what the plateau
+measures and what neither $\bar n$ nor RMSE captures.
+\texttt{identity} is the control throughout: $0.786$ against $0.786$,
+identical to three figures, because there $f=h$ and the two models are the
+same model.
 
-\texttt{identity} is the control: $0.588$ against $0.588$, identical to three
-figures, because there $f=h$ and the two models are the same model.
+\section{What this means}
 
-\section{What this means overall}
-
-\begin{itemize}\itemsep2pt
-\item \textbf{Composite wins on nearly every problem}, bijective or not,
-usually by one to two orders of magnitude in final regret.
-\item \textbf{Bijectivity does not predict the gain.} \texttt{shiftsq\_c3} is
-effectively bijective and gains $+1.75$; \texttt{abs} is two-to-one and gains
-$+0.35$. The two groups overlap heavily.
-\item \textbf{The reason is that most of the advantage is not information.}
-When $g$ is nonlinear, $f$ is not a GP and Direct is fitting the wrong model.
-Bijectivity removes the information channel and leaves that one untouched.
-\item \textbf{The quantity that does track the gain is how low the problem can
-be driven at all} ($r=-0.93$ against Composite's final regret). Where $g$ is
-flat at its optimum there is a broad near-optimal plateau and the gap can be
-enormous; where $g$ is steep there, neither arm gets far and the gap is small.
+\begin{itemize}\itemsep3pt
+\item \textbf{The proposition's prediction holds.} Bijective $g$: no gain, in
+five of six cases. Non-bijective $g$: a gain every time, up to $3.4$ orders of
+magnitude.
+\item \textbf{Its stated reason does not.} $\bar n$ is uncorrelated with the
+size of the gain, \texttt{sum} destroys information and gains nothing, and
+\texttt{shiftsq\_c3} preserves it and gains a great deal.
+\item \textbf{The operative property is flatness of $g$ at its optimum.}
+Bijectivity predicts the gain because it rules that out, not because of
+anything to do with information.
+\item \textbf{The earlier three-channel decomposition is withdrawn.} The
+split into hyperparameter estimation, model shape and information was measured
+on a grid where Composite held the true kernel; with both arms fitting, there
+is no bijective-case gain left to decompose.
 \end{itemize}
 
-\paragraph{Left out.} \texttt{cos\_w4} is excluded pending a closer look. It
-has the most preimages of any map ($\bar n=9.75$) and nearly the smallest gain,
-because at $\omega=4$ the posterior uncertainty in $h$ spans most of a
-half-period and Composite's predictive on $f$ becomes as wide as $f$ itself ---
-it knows $h$ and that tells it nothing about the objective.
+\paragraph{Still open.} \texttt{cos\_w4} has the most preimages of any map
+($\bar n=9.75$) and a plateau, yet gains nothing ($-0.014$). The likely reason
+is that at $\omega=4$ the posterior uncertainty in $h$ spans most of a
+half-period, so Composite's predictive on $f$ becomes as wide as $f$ itself
+and knowing $h$ stops telling it anything about the objective. That is a
+budget question --- $\mathrm{sd}(h\mid\text{data})$ shrinks as data arrives
+--- and is being investigated separately.
 
-\paragraph{One caveat on these tables.} Composite here is given the
-generator's true kernel, while Direct must estimate one. On \texttt{identity},
-where no misspecification is possible, that alone is worth the entire $+0.409$
-gain; making Composite fit its hyperparameters drops it to $+0.206$. The
-nonlinear rows keep their large gains either way, but the bijective rows
-should be read as upper bounds until the all-fitted grid is run.
+\paragraph{Reproducibility.} All numbers come from
+\texttt{three\_arm/results\_matern2} ($22$ maps $\times$ $4$ draws $\times$ $5$
+seeds). Every table in this document is generated by
+\texttt{python three\_arm/tables.py}, so it cannot drift from the stored
+results. The grid was verified before use: $f^\star$ recomputes to $10^{-9}$
+on all $88$ conditions, $h$ is shared across maps at each draw, no run has
+negative regret, and none sits at the regret floor.
 
 \end{document}

@@ -1,0 +1,19 @@
+\begin{table}[H]
+\centering
+\small
+\caption{Maps left out of the headline comparison, with the reason and what they would have contributed. The three non-smooth maps are the three non-bijective maps with no effect, so excluding them makes the grouping look cleaner than it is; both versions are reported in the text.}
+\label{tab:excluded}
+\begin{tabular}{l l r r}
+\toprule
+Problem & Why excluded & Gain & $p$ \\
+\midrule
+\texttt{relu} & kink at $h=0$, and constant for $h<0$ & $-0.154\pm0.567$ & 0.881 \\
+\texttt{abs} & kink at $h=0$ & $+0.098\pm1.000$ & 0.333 \\
+\texttt{clip\_c2} & constant outside $[-1,1]$ & $-0.003\pm0.546$ & 0.508 \\
+\texttt{cos\_w4} & $\omega\,\mathrm{sd}(h)\approx2.6$ rad; see text & $-0.014\pm1.691$ & 0.515 \\
+\texttt{root1} & identical to \texttt{identity} after normalisation & $+0.087\pm0.693$ & 0.291 \\
+\midrule
+\texttt{sum} & linear, $k=2$: the control & $-0.230\pm0.662$ & 0.932 \\
+\bottomrule
+\end{tabular}
+\end{table}

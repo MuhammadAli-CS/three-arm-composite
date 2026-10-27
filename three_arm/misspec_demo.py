@@ -57,7 +57,7 @@ def rmse(a, b):
     return float(((a - b) ** 2).mean().sqrt())
 
 
-def one_split(problem, n_train, n_test, seed):
+def one_split(problem, n_train, n_test, seed, oracle=True):
     X = SobolEngine(problem.d, scramble=True, seed=seed).draw(n_train + n_test).to(DTYPE)
     Xtr, Xte = X[:n_train], X[n_train:]
     Htr, Hte = problem.h(Xtr), problem.h(Xte)
@@ -85,7 +85,15 @@ def one_split(problem, n_train, n_test, seed):
                         dim=-1)                                   # (S, n_test, k)
     comp_outer = rmse(problem.g(draws).mean(0), fte)
 
-    # The same, but handed the generator's true kernel instead of fitting one
+    if not oracle:
+        sd_f0 = float(fte.std()); sd_h0 = float(Hte.std())
+        return (direct_outer / sd_f0, st.mean(inner) / sd_h0,
+                comp_outer / sd_f0, float("nan"), float("nan"))
+
+    # The same, but handed the generator's true kernel instead of fitting one.
+    # KnownPrior builds an RBF gram matrix, so this is only the true kernel
+    # when h was drawn from RBF; under --kernel matern it is a misspecified
+    # oracle and --no-oracle should be used instead.
     prior = KnownPrior.from_problem(problem)
     L = prior.unit_chol(Xtr)
     mu_o, sd_o = prior.conditional(Xtr, Htr.unsqueeze(0), Xte, L)
@@ -113,7 +121,9 @@ def main():
     ap.add_argument("--n-test", type=int, default=20)
     ap.add_argument("--splits", type=int, default=15)
     ap.add_argument("--draws", type=int, default=4)
-    ap.add_argument("--kernel", default="rbf", choices=["rbf", "matern"])
+    ap.add_argument("--kernel", default="matern", choices=["rbf", "matern"])
+    ap.add_argument("--no-oracle", action="store_true",
+                    help="skip the true-kernel columns (KnownPrior is RBF-only)")
     a = ap.parse_args()
     torch.set_default_dtype(DTYPE)
 
@@ -130,9 +140,13 @@ def main():
             p = make_problem(m, d=6, lengthscale=0.5, draw_seed=draw,
                              kernel=a.kernel)
             for s in range(a.splits):
-                d_, i_, o_, oi_, oo_ = one_split(p, a.n_train, a.n_test, 1000 * draw + s)
+                d_, i_, o_, oi_, oo_ = one_split(p, a.n_train, a.n_test,
+                                                 1000 * draw + s, oracle=not a.no_oracle)
                 D.append(d_); I.append(i_); O.append(o_); OI.append(oi_); OO.append(oo_)
-        f = lambda v: f"{st.mean(v):.4f}+/-{st.stdev(v) / math.sqrt(len(v)):.4f}"
+        def f(v):
+            if any(x != x for x in v):          # oracle columns off
+                return "--"
+            return f"{st.mean(v):.4f}+/-{st.stdev(v) / math.sqrt(len(v)):.4f}"
         print(f"{m:10s} {f(D):>14s} | {f(I):>13s} {f(O):>14s} | {f(OI):>13s} {f(OO):>14s}")
     print("\nAll RMSE on the 20 held-out points, lower is better.")
     print("Composite's inner RMSE being tiny while its outer RMSE still beats")

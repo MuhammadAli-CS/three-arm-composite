@@ -1,0 +1,26 @@
+\begin{table}[H]
+\centering
+\small
+\caption{Held-out regression error against the optimisation gain, on the same
+problems. No acquisition function and no optimiser anywhere: $80$ training
+points, $20$ held out, $60$ fits per map. Each RMSE is divided by the spread of
+whatever it is predicting, so $1.0$ means no better than predicting the mean.
+Both arms fit their own hyperparameters. Produced by
+\texttt{python three\_arm/misspec\_demo.py --kernel matern --no-oracle}.}
+\label{tab:rmse}
+\begin{tabular}{l r r r r}
+\toprule
+ & Direct & \multicolumn{2}{c}{Composite} & BO gain \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-5}
+Problem & on $f$ & on $h$ (inner) & on $f$ (outer) & (Table~\ref{tab:bij}--\ref{tab:nonbij}) \\
+\midrule
+\texttt{identity} & $0.786$ & $0.786$ & $0.786$ & $+0.087$ \\
+\texttt{mono3} & $1.110$ & $0.786$ & $\mathbf{0.976}$ & $+0.081$ \\
+\texttt{mono5} & $1.996$ & $0.786$ & $\mathbf{1.570}$ & $-0.048$ \\
+\texttt{root3} & $1.253$ & $0.786$ & $\mathbf{1.086}$ & $+0.262$ \\
+\midrule
+\texttt{shiftsq\_c0} & $1.106$ & $0.786$ & $\mathbf{0.996}$ & $+2.809$ \\
+\texttt{shiftsq\_c3} & $0.794$ & $0.786$ & $0.782$ & $+2.359$ \\
+\bottomrule
+\end{tabular}
+\end{table}
