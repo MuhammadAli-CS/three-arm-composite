@@ -37,6 +37,12 @@ def fiber_sizes(problem, n_probe: int = 4000, grid: int = 20001):
     actually reaches, padded slightly, so preimages outside the support are
     not counted -- a branch the prior never visits is not a real ambiguity.
     """
+    if problem.outer.k != 1:
+        # |g^{-1}(y)| for g: R^k -> R is a (k-1)-dimensional set, not a count,
+        # so the crossing counter does not apply.  It used to crash here with
+        # an IndexError; say so instead.
+        raise ValueError(f"{problem.name} has k={problem.outer.k}; the fiber "
+                         "counter is only defined for a single intermediate")
     X = SobolEngine(problem.d, scramble=True, seed=404).draw(n_probe).to(DTYPE)
     h = problem.h(X)[:, 0]
     lo, hi = float(h.min()), float(h.max())
@@ -46,17 +52,27 @@ def fiber_sizes(problem, n_probe: int = 4000, grid: int = 20001):
     ys = problem.outer.fn(h.unsqueeze(-1)).numpy()          # (n_probe,)
 
     # For each y, count sign changes of g(z) - y along the grid.
-    step = float(z[1] - z[0])
-    scale = max(float(np.abs(gz).max()), 1e-12)
+    # A flat region is not a crossing, so counting sign changes silently misses
+    # it -- which is how -max(h,0) came out as injective when half the domain
+    # maps to one value.  Flatness has to be judged by the SLOPE, though, not
+    # by |g(z) - y| against a global tolerance: h^5 is merely very small near
+    # z = 0, not constant, and an absolute threshold called 11% of mono5's
+    # domain flat when mono5 is strictly increasing.
+    #
+    # So mark the cells where g is genuinely constant -- zero finite difference
+    # relative to the total variation of g -- and require them to cover a real
+    # fraction of the domain before calling a level set infinite.  That
+    # separates relu (half the domain exactly constant) from mono5 (a single
+    # stationary point, measure zero).
+    dg = np.abs(np.diff(gz))
+    span = max(float(np.abs(gz).max() - np.abs(gz).min()), 1e-300)
+    flat_cell = dg < 1e-12 * span
+    flat_frac = float(flat_cell.mean())
     counts = np.empty(len(ys))
+    tol = 1e-12 * max(float(np.abs(gz).max()), 1e-300)
     for i, y in enumerate(ys):
         d = gz - y
-        # A flat region is not a crossing, so counting sign changes silently
-        # misses it -- which is how -max(h,0) came out as injective when half
-        # the domain maps to one value.  Any run of grid points sitting on the
-        # level set is reported as an infinite fiber instead.
-        on = np.abs(d) < 1e-9 * scale
-        if on.sum() > 2:
+        if flat_frac > 0.01 and np.any(flat_cell & (np.abs(d[:-1]) < tol)):
             counts[i] = np.inf
             continue
         counts[i] = int(np.count_nonzero(np.signbit(d[:-1]) != np.signbit(d[1:])))
