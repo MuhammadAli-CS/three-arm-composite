@@ -835,22 +835,32 @@ def fig_mobo(json_main, json_sinh, path):
 
 
 def fig_bo_curves(results_dir, path, arms=("direct", "composite_mle"),
-                  exclude=("cos_w4",), inj_cols=2, non_cols=4):
+                  exclude=None, inj_cols=2, non_cols=4):
     """Convergence per problem, bijective block on the left of a vertical rule.
 
     Regret rather than the raw best value: f_min differs between function
     draws, so a single horizontal optimum line cannot be drawn against curves
     pooled over draws, and the maps span very different scales.
+
+    Shows exactly the maps the results tables show.  It used to draw every
+    map in the directory, so root1, relu, abs, clip_c2 and sum appeared here
+    and nowhere else in the document -- a reader counting panels against
+    Tables 4 and 5 found 21 against 16.  Default to the same EXCLUDED set the
+    tables use, and drop k>1 maps, which have their own subsection.
     """
     import glob, json, os, collections, math
     import matplotlib.gridspec as gridspec
     from three_arm.injectivity import summarize
     from three_arm.run import REGRET_FLOOR
+    from three_arm.tables import EXCLUDED
+
+    if exclude is None:
+        exclude = set(EXCLUDED)
 
     runs = collections.defaultdict(lambda: collections.defaultdict(list))
     for fp in sorted(glob.glob(os.path.join(results_dir, "*.json"))):
         blob = json.load(open(fp))
-        if blob["map"] in exclude:
+        if blob["map"] in exclude or OUTER_MAPS[blob["map"]].k > 1:
             continue
         fm = blob["f_min"]
         for arm, rs in blob["results"].items():
