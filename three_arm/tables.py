@@ -20,6 +20,7 @@ import os
 import statistics as st
 import sys
 
+import numpy as np
 import torch
 from torch.quasirandom import SobolEngine
 
@@ -132,16 +133,50 @@ def load(results_dir):
     return out
 
 
+def is_injective(name, grid=400_001, n_probe=200_000):
+    """Is g one-to-one on the range h actually reaches?
+
+    Decided by monotonicity of g over [min h, max h], not by thresholding
+    nbar.  nbar is an AVERAGE over the observed y, so a fold that is real but
+    rarely sampled barely moves it: shiftsq_c3 is (h-3)^2 with its vertex
+    strictly inside h's range of about [-4.07, +4.17], yet only 0.12% of
+    draws exceed 3, giving nbar = 1.01.  Calling that bijective puts the word
+    next to a parabola, and the fold is precisely where the optimum sits.
+    Injectivity is a property of the map on its domain, so test it directly.
+    """
+    p = make_problem(name, d=6, lengthscale=0.5, draw_seed=0, kernel="matern")
+    if p.outer.k != 1:
+        return None
+    X = SobolEngine(6, scramble=True, seed=404).draw(n_probe).to(DTYPE)
+    with torch.no_grad():
+        h = torch.cat([p.h(X[i:i + 8192])[:, 0] for i in range(0, len(X), 8192)])
+        z = torch.linspace(float(h.min()), float(h.max()), grid, dtype=DTYPE)
+        gz = torch.cat([p.g(z[i:i + 200_000].unsqueeze(-1))
+                        for i in range(0, grid, 200_000)])
+    d = torch.diff(gz).numpy()
+    # A flat stretch is non-injective too, but judge flatness by the slope
+    # relative to the function's own scale -- mono5 is merely very small near
+    # zero, not constant, and an absolute tolerance calls it flat.
+    span = float(gz.max() - gz.min())
+    flat = np.abs(d) < 1e-12 * span / grid
+    if flat.mean() > 0.01:
+        return False
+    sgn = np.sign(d[~flat])
+    return bool(np.all(sgn == sgn[0]))
+
+
 def classify(name):
-    """'bijective', 'non-bij' or 'k>1', from the measured fiber."""
+    """'bijective', 'non-bij' or 'k>1'.
+
+    The group comes from injectivity on h's reachable range; nbar is still
+    reported alongside it, and the two disagree for shiftsq_c3 by design.
+    """
     try:
         r = summarize(name, draw_seed=0)
     except ValueError:
         return "k>1", "--"
-    if r["frac_infinite"] > 0.01:
-        return "non-bij", r"$\infty$"
-    return (("bijective" if r["nbar"] < 1.02 else "non-bij"),
-            f"{r['nbar']:.2f}")
+    nbar = r"$\infty$" if r["frac_infinite"] > 0.01 else f"{r['nbar']:.2f}"
+    return ("bijective" if is_injective(name) else "non-bij"), nbar
 
 
 def plateau_width(name, eps=1e-6, grid=2_000_001, n_probe=200_000):
@@ -190,11 +225,11 @@ def write_results_tables(data, out):
                       r"final $\log_{10}$ regret, so positive favours "
                       "Composite; $p$ is a one-sided paired $t$-test of "
                       "whether that gain exceeds zero, over the $20$ runs. "
-                      r"Only \texttt{shiftsq\_c3} shows an effect, and "
-                      "Section~\\ref{sec:plateau} explains why it is not a "
-                      "counterexample."),
+                      r"No row reaches significance."),
         "non-bij": ("Non-bijective outer maps, same convention. Every row is "
-                    "significant."),
+                    r"significant. \texttt{shiftsq\_c3} belongs here despite "
+                    r"$\bar n=1.01$: its fold is rarely sampled but real, and "
+                    "Section~\\ref{sec:plateau} shows it sits on the optimum."),
     }
     for g, fname, label in (("bijective", "bij_table.tex", "tab:bij"),
                             ("non-bij", "nonbij_table.tex", "tab:nonbij")):

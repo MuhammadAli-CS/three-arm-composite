@@ -24,9 +24,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from three_arm.run import log_regret                               # noqa: E402
 from three_arm.tables import DTYPE, fmt_p, paired_t, tex           # noqa: E402
 
-# Bijectivity over the range h reaches, matching the single-objective tables:
-# shiftsq_c3's vertex sits at the edge of that range, so it measures as one.
-BIJECTIVE = {"identity", "exp_b1", "sinh_b1", "mono3", "mono5", "shiftsq_c3"}
+# Bijectivity over the range h reaches, matching the single-objective tables.
+# shiftsq_c3 is NOT here: (h-3)^2 has its vertex strictly inside that range,
+# so it is two-to-one there, even though the fold is sampled by only 0.12% of
+# draws and nbar therefore reads 1.01.  See three_arm.tables.is_injective.
+BIJECTIVE = {"identity", "exp_b1", "sinh_b1", "mono3", "mono5"}
 DEFERRED = {"cos_w4"}
 
 

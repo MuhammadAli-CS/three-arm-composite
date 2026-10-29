@@ -861,13 +861,12 @@ def fig_bo_curves(results_dir, path, arms=("direct", "composite_mle"),
         o = OUTER_MAPS[m]
         if o.k > 1:
             return False
-        # Trust the measured fiber rather than the declared kind: shiftsq_c3 is
-        # a parabola whose vertex sits where h almost never goes, so it is
-        # effectively bijective, while the kind string calls it lossy.
-        r = summarize(m)
-        # an infinite fiber on a set of positive measure is as non-injective
-        # as it gets, however few crossings the counter finds
-        return r["frac_infinite"] <= 0.01 and r["nbar"] < 1.02
+        # Injectivity on the range h actually reaches, decided by the
+        # monotonicity test in three_arm.tables rather than by thresholding
+        # nbar.  nbar is an average over observed y, so shiftsq_c3's fold --
+        # real, but sampled by 0.12% of draws -- barely registers in it.
+        from three_arm.tables import is_injective
+        return bool(is_injective(m))
 
     inj = [m for m in OUTER_MAPS if m in runs and is_inj(m)]
     non = [m for m in OUTER_MAPS if m in runs and not is_inj(m)]

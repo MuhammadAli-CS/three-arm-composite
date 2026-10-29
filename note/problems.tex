@@ -30,20 +30,21 @@ setup, not a property of the problem.} An earlier version of this document
 reported that Composite wins almost everywhere, bijective or not. In that grid
 Composite was handed the generator's true kernel while Direct had to estimate
 one, and $h$ was drawn from an RBF kernel while both surrogates assumed
-Mat\'ern. Remove both advantages and the bijective column collapses: five of
-six bijective maps now show no effect at all. On \texttt{identity} the gain
+Mat\'ern. Remove both advantages and the bijective column collapses: all five
+bijective maps now show no effect at all. On \texttt{identity} the gain
 fell from $+0.409$ to $+0.087\pm0.155$.
 
-\item \textbf{With that fixed, bijectivity does predict the gain.} All ten
-non-bijective maps gain, every one significant at $0.05$, by up to $3.4$
-orders of magnitude. Five of six bijective maps do not.
+\item \textbf{With that fixed, bijectivity does predict the gain.} All
+eleven non-bijective maps gain, every one significant at $0.05$, by up to
+$3.4$ orders of magnitude. None of the five bijective maps do.
 
 \item \textbf{But information is not the mechanism.} The number of preimages
 $\bar n$ has essentially no correlation with the size of the gain
 ($r=-0.12$). What does predict it is how \emph{flat $g$ is at its own
-optimum} ($r=+0.78$). The two come apart cleanly on \texttt{shiftsq\_c3},
-which is bijective in practice and still gains $+2.36$, and on \texttt{sum},
-which destroys information and gains nothing.
+optimum} ($r=+0.78$). The two come apart on \texttt{shiftsq\_c3}, which has
+$\bar n=1.01$ and still gains $+2.36$; on \texttt{root3} and \texttt{root5},
+which have $\bar n=2.8$ and $4.5$ and gain almost nothing; and on
+\texttt{sum}, which destroys information and gains nothing.
 
 \item \textbf{None of the magnitudes survive the move to two objectives.}
 Run as one of two objectives under hypervolume, the same seventeen maps give
@@ -134,9 +135,14 @@ the observed $y$,
 \bar n=\mathbb E\bigl[\,|g^{-1}(y)|\,\bigr],
 \]
 \emph{measured} by counting crossings of $g(z)-y$ over the range $h$ actually
-reaches, not inferred from the algebra. The two come apart:
-\texttt{shiftsq\_c3} is a parabola, two-to-one on paper, but its vertex sits at
-$h=3$ where $h$ almost never goes, so in practice $\bar n=1.01$.
+reaches, not inferred from the algebra. Note that $\bar n$ is not the same
+test as injectivity, and the two can disagree: \texttt{shiftsq\_c3} is
+$(h-3)^{2}$ with its vertex at $h=3$, strictly inside the range
+$[-4.07,+4.17]$ that $h$ reaches, so it is genuinely two-to-one there --- but
+only $0.12\%$ of draws exceed $3$, so the fold barely moves the average and
+$\bar n=1.01$. It is classified by injectivity, which is a property of the
+map, not by $\bar n$, which is a property of the sampling. The disagreement
+is the point of Section~\ref{sec:plateau}.
 
 \paragraph{The $p$-value.} A one-sided paired $t$-test on the per-run
 difference, asking whether Composite's mean regret is lower. Paired because
@@ -180,10 +186,15 @@ versions are reported.
 \input{bij_table.tex}
 \input{nonbij_table.tex}
 
-\noindent Every non-bijective map gains; one bijective map does. The mean gain
-is $+1.98$ for the non-bijective group and $+0.45$ for the bijective group,
-and that $+0.45$ is almost entirely \texttt{shiftsq\_c3}: without it the
-bijective mean is $+0.07$, which is nothing.
+\noindent Every non-bijective map gains and no bijective map does: $11$ of
+$11$ against $0$ of $5$ at the $0.05$ level. The mean gain is $+2.01$ for the
+non-bijective group and $+0.07$ for the bijective group, a factor of nearly
+thirty. The split is clean, and two caveats keep it honest: three
+non-bijective maps with no effect are excluded for non-smoothness
+(Table~\ref{tab:excluded}), and \texttt{shiftsq\_c3} sits in the
+non-bijective group on the strength of a fold that only $0.12\%$ of draws
+reach. Both choices are defensible on their own terms, and both happen to
+tidy the result.
 
 \begin{figure}[H]
 \centering
@@ -192,8 +203,7 @@ bijective mean is $+0.07$, which is nothing.
 shaded. Bijective maps left of the rule, non-bijective right. The two blocks
 now look different, which is the change from the earlier grid: on the left the
 curves lie on top of each other, on the right Composite separates within the
-first ten evaluations. \texttt{shiftsq\_c3}, bottom left, is the exception
-that Section~\ref{sec:plateau} explains.}
+first ten evaluations.}
 \end{figure}
 
 \subsection{The linear control}
@@ -218,10 +228,13 @@ maps the correlation between $\bar n$ and the gain is $r=-0.12$ --- no
 relationship at all. \texttt{cos\_w2} has $\bar n=5.04$ and gains $+1.06$;
 \texttt{root2} has $\bar n=2.00$ and gains $+3.42$.
 
-\paragraph{\texttt{shiftsq\_c3} gains without being many-to-one.} It measures
-$\bar n=1.01$, so a typical observation determines $h$, and it still gains
-$+2.36$ --- the largest gain of any map outside the \texttt{root}/\texttt{shiftsq}
-families.
+\paragraph{\texttt{shiftsq\_c3} gains while being effectively one-to-one.} It
+measures $\bar n=1.01$, so a typical observation does determine $h$, and it
+still gains $+2.36$. \texttt{root3} and \texttt{root5} make the same point
+from the other direction: $\bar n=2.82$ and $4.50$, among the highest in the
+grid, and gains of $+0.26$ and $+0.42$ --- significant, but an order of
+magnitude below the rest of their group. How much a map hides and how much
+Composite gains are different quantities.
 
 \subsection{What does predict it}
 
@@ -257,13 +270,25 @@ $\Rightarrow$ steep there $\Rightarrow$ no plateau $\Rightarrow$ no gain.
 \noindent Bijectivity forecloses a flat optimum. That is why the prediction
 holds, and it is not an information argument at any step.
 
-\texttt{shiftsq\_c3} is the case that distinguishes the two explanations. Its
-fold sits at $h=3$, at the very edge of where $h$ reaches, so almost every
-observation lands on the monotone left branch and $\bar n\approx1$. But its
-\emph{minimum} is exactly at that fold, where $g$ is flat. $\bar n$ averages
-over the whole distribution of $y$, which is dominated by regions far from the
-optimum, so it misses the one place that matters. The plateau measure looks
-only at the optimum, and gets it right.
+Because bijectivity rules a plateau out, the two explanations agree on the
+\emph{sign} of every map in the grid, and the grouping alone cannot separate
+them. They separate on \emph{magnitude}, and the cases that do it are
+\texttt{root3} and \texttt{root5}. Both are non-bijective, both have high
+$\bar n$, and both have no plateau --- their minimum is a single point at the
+grid resolution. An information account predicts a large gain for them; the
+plateau account predicts a small one. They gain $+0.26$ and $+0.42$, against
+$+2.05$ for the maps with a genuine plateau.
+
+\texttt{shiftsq\_c3} shows the same thing with the roles exchanged. Its fold
+is at $h=3$, where $h$ almost never goes, so almost every observation lands
+on the monotone left branch and $\bar n=1.01$ --- it hides essentially
+nothing. But its \emph{minimum} is exactly at that fold, where $g$ is flat,
+and it gains $+2.36$. $\bar n$ averages over the whole distribution of $y$,
+which is dominated by regions far from the optimum, so it misses the one
+place that matters; the plateau measure looks only at the optimum. This is
+also why the map is classified as non-bijective here despite $\bar n\approx1$:
+the fold is rare, but it is real, and it is exactly where the optimisation
+ends up.
 
 \section{Regression error and optimisation gain come apart}
 
@@ -348,8 +373,9 @@ at $r=-0.36$ ($-0.21$ without \texttt{root5}). This is the expected direction:
 the argument of Section~\ref{sec:plateau} is about the neighbourhood of a
 single optimum, and hypervolume has no single optimum --- the Pareto front
 spans the whole attained range of $g_1$. \texttt{shiftsq\_c3} confirms it from
-the inside: first of seventeen by single-objective gain, eighth of twenty-one
-by hypervolume gain.
+the inside: first of seventeen by single-objective gain, where its plateau is
+the whole story, and eighth of twenty-one by hypervolume gain, where a
+plateau at one end of the front buys nothing.
 
 \paragraph{\texttt{root5} is a scale artefact, not structure.} Its $+31\%$ is
 by far the largest effect in the grid, and it comes from the objective being
@@ -369,8 +395,8 @@ to explain the gains at $r=+0.94$, which collapses to $-0.02$ once
 \toprule
  & Single objective & Multi objective \\
 \midrule
-bijective ($n=6$) & $+0.45$, \textbf{0 of 6} significant & $+1.19\%$, \textbf{0 of 6} significant \\
-not bijective ($n=11$) & $+1.80$, \textbf{10 of 11} & $+4.28\%$, \textbf{5 of 11} \\
+bijective ($n=5$) & $+0.07$, \textbf{0 of 5} significant & $+1.09\%$, \textbf{0 of 5} significant \\
+not bijective ($n=12$) & $+1.84$, \textbf{11 of 12} & $+4.06\%$, \textbf{5 of 12} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -385,11 +411,13 @@ $\bar n$, plateau width, tail-heaviness, or the single-objective gain itself
 
 \begin{itemize}\itemsep3pt
 \item \textbf{The proposition's prediction holds.} Bijective $g$: no gain, in
-five of six cases. Non-bijective $g$: a gain every time, up to $3.4$ orders of
+all five cases. Non-bijective $g$: a gain every time, up to $3.4$ orders of
 magnitude. The same split appears in the two-objective setting, weaker.
 \item \textbf{Its stated reason does not.} $\bar n$ is uncorrelated with the
-size of the gain, \texttt{sum} destroys information and gains nothing, and
-\texttt{shiftsq\_c3} preserves it and gains a great deal.
+size of the gain: \texttt{sum} destroys information and gains nothing,
+\texttt{root3} and \texttt{root5} have the highest $\bar n$ in their group
+and the smallest gains in it, and \texttt{shiftsq\_c3} hides almost nothing
+($\bar n=1.01$) and gains a great deal.
 \item \textbf{The operative property is flatness of $g$ at its optimum.}
 Bijectivity predicts the gain because it rules that out, not because of
 anything to do with information. This is specific to the single-objective

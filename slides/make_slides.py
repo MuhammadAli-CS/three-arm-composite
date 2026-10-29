@@ -135,8 +135,8 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
         "estimated one, and h was RBF while both assumed Matérn. "
         "On identity the gain fell from +0.409 to +0.087 ± 0.155.",
         "**2.  With that fixed, bijectivity does predict the gain.**",
-        "   All 10 non-bijective maps gain, every one significant. "
-        "5 of 6 bijective maps do not.",
+        "   All 11 non-bijective maps gain, every one significant. "
+        "None of the 5 bijective maps do.",
         "**3.  But information is not the mechanism.**",
         "   n̄ is uncorrelated with the size of the gain (r = −0.12). "
         "Flatness of g at its own optimum predicts it (r = +0.78).",
@@ -182,7 +182,7 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
               "maps with no effect.")
     tf2, r2 = _text(s, Inches(0.9), Inches(5.15), Inches(11.5), Inches(1.4),
                     size=16, color=GREY)
-    r2.text = ("Excluding them takes the non-bijective group from 10 significant "
+    r2.text = ("Excluding them takes the non-bijective group from 11 significant "
                "rows out of 13 to 10 out of 10. The criterion is smoothness of g, "
                "decided independently of the result — but both versions are reported.")
 
@@ -196,30 +196,33 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
         v = stats[m]
         rows.append([m, v["nbar"], f"{v['direct']:+.3f}", f"{v['comp']:+.3f}",
                      f"{v['mean']:+.3f}", pf(v["p"])])
-        if m == "shiftsq_c3":
-            hi.append(i)
+        _ = i
     table(s, rows, Inches(1.4), Inches(2.0), Inches(10.5), Inches(3.0),
           size=15, align_right={1, 2, 3, 4, 5}, hi_rows=tuple(hi), hi_color=RED)
     tf, r = _text(s, Inches(1.4), Inches(5.6), Inches(10.5), Inches(1.0),
                   size=17, color=GREY)
-    r.text = ("Five of six show nothing. shiftsq_c3 is the exception — "
-              "and it is the key to the mechanism.")
+    r.text = ("All five show nothing. The largest gain in the group is "
+              "+0.148, and it is not significant.")
 
     # 6 ---------------------------------------------------------- nonbij results
     s = slide(prs, "Non-bijective maps: every row gains", "same convention")
     rows = [["Problem", "n̄", "Direct", "Composite", "Gain", "p"]]
-    for m in non:
+    hi = []
+    for i, m in enumerate(non, start=1):
         v = stats[m]
         rows.append([m, v["nbar"], f"{v['direct']:+.3f}", f"{v['comp']:+.3f}",
                      f"{v['mean']:+.3f}", pf(v["p"])])
+        if m == "shiftsq_c3":
+            hi.append(i)
     table(s, rows, Inches(1.4), Inches(1.75), Inches(10.5), Inches(4.4),
-          size=14, align_right={1, 2, 3, 4, 5})
+          size=14, align_right={1, 2, 3, 4, 5}, hi_rows=tuple(hi),
+          hi_color=RED)
     bm = st.mean([stats[m]["mean"] for m in bij])
     nm = st.mean([stats[m]["mean"] for m in non])
     tf, r = _text(s, Inches(1.4), Inches(6.45), Inches(10.5), Inches(0.7),
                   size=17, bold=True, color=BLUE)
-    r.text = (f"mean gain:  non-bijective {nm:+.2f}   vs   bijective {bm:+.2f} "
-              f"(and that is almost all shiftsq_c3)")
+    r.text = (f"mean gain:  non-bijective {nm:+.2f}   vs   bijective {bm:+.2f}"
+              f"      shiftsq_c3 (red) has n̄ = 1.01 — a real fold, rarely hit")
 
     # 7 ---------------------------------------------------------------- curves
     s = slide(prs, "Convergence", "median log₁₀ regret, interquartile band; "
@@ -299,11 +302,13 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
     bullets(s, [
         "**Bijectivity forecloses a flat optimum. That is why the prediction "
         "holds — and it is not an information argument at any step.**",
-        "shiftsq_c3 = (h−3)² separates the two explanations: its fold sits at "
-        "h = 3, the edge of h's range, so n̄ ≈ 1 — but its minimum is "
-        "exactly at that fold, where g is flat.",
-        "n̄ averages over all y, dominated by regions far from the optimum. "
-        "The plateau measure looks only at the optimum.",
+        "Bijectivity and the plateau agree on the **sign** everywhere, so they "
+        "separate on **magnitude**: root3 and root5 are non-bijective with "
+        "high n̄ and no plateau, and gain +0.26 and +0.42 against +2.05 for "
+        "the maps that have one.",
+        "shiftsq_c3 = (h−3)² shows it in reverse: n̄ = 1.01, so it hides almost "
+        "nothing — but its minimum is exactly at the fold, where g is flat, "
+        "and it gains +2.36.",
     ], top=4.6, gap=0.68, size=17)
 
     # 11 ---------------------------------------------------------------- rmse
@@ -376,9 +381,9 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
 
         s4 = slide(prs, "What survives, and one trap")
         rows = [["", "Single objective", "Multi objective"],
-                ["bijective (n=6)", "+0.45,  0 of 6 significant",
-                 "+1.19%,  0 of 6 significant"],
-                ["not bijective (n=11)", "+1.80,  10 of 11", "+4.28%,  5 of 11"]]
+                ["bijective (n=5)", "+0.07,  0 of 5 significant",
+                 "+1.09%,  0 of 5 significant"],
+                ["not bijective (n=12)", "+1.84,  11 of 12", "+4.06%,  5 of 12"]]
         table(s4, rows, Inches(1.2), Inches(1.8), Inches(10.9), Inches(1.5),
               size=15)
         bullets(s4, [
@@ -396,12 +401,13 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
     # 13 ------------------------------------------------------------- conclusion
     s = slide(prs, "What this means")
     bullets(s, [
-        "**The proposition's prediction holds.** Bijective g: no gain, in 5 of 6 "
+        "**The proposition's prediction holds.** Bijective g: no gain, in all 5 "
         "cases. Non-bijective g: a gain every time. The same split appears with "
         "two objectives, weaker.",
-        "**Its stated reason does not.** n̄ is uncorrelated with the gain, "
-        "sum destroys information and gains nothing, shiftsq_c3 preserves it and "
-        "gains a great deal.",
+        "**Its stated reason does not.** n̄ is uncorrelated with the gain: "
+        "sum destroys information and gains nothing, root3 and root5 have the "
+        "highest n̄ in their group and the smallest gains in it, and shiftsq_c3 "
+        "hides almost nothing and gains a great deal.",
         "**The operative property is flatness of g at its optimum** — in the "
         "single-objective setting. Bijectivity predicts the gain because it "
         "rules that out.",
