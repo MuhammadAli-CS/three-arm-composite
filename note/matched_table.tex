@@ -1,0 +1,31 @@
+\begin{table}[H]
+\centering
+\small
+\caption{The $17$ maps measured in both settings. Single-objective gain is in $\log_{10}$ regret, multi-objective in percent hypervolume; the two are on different scales, so only the \emph{ordering} is comparable. Rows are sorted by the single-objective gain, and the multi-objective column does not follow it.}
+\label{tab:matched}
+\begin{tabular}{l c r r r r}
+\toprule
+ & & \multicolumn{2}{c}{Single objective} & \multicolumn{2}{c}{Multi objective} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Problem & Bij.\ & Gain & $p$ & Gain (\%) & $p$ \\
+\midrule
+\texttt{root2} & no & $+3.420$ & $<$0.001 & $+1.26$ & 0.231 \\
+\texttt{shiftsq\_c1} & no & $+2.861$ & $<$0.001 & $+1.16$ & 0.088 \\
+\texttt{shiftsq\_c0} & no & $+2.809$ & $<$0.001 & $+2.70$ & 0.023 \\
+\texttt{shiftsq\_c2} & no & $+2.780$ & $<$0.001 & $+0.17$ & 0.451 \\
+\texttt{shiftsq\_c0.5} & no & $+2.413$ & $<$0.001 & $+3.53$ & 0.048 \\
+\texttt{shiftsq\_c3} & yes & $+2.359$ & $<$0.001 & $+1.69$ & 0.082 \\
+\texttt{root4} & no & $+2.326$ & $<$0.001 & $+0.69$ & 0.307 \\
+\texttt{cos\_w1} & no & $+1.433$ & 0.004 & $-2.39$ & 0.986 \\
+\texttt{cos\_w2} & no & $+1.059$ & 0.004 & $+2.01$ & 0.014 \\
+\texttt{root5} & no & $+0.424$ & 0.004 & $+31.24$ & 0.013 \\
+\texttt{root3} & no & $+0.262$ & 0.030 & $+5.28$ & 0.024 \\
+\texttt{exp\_b1} & yes & $+0.148$ & 0.109 & $+1.14$ & 0.138 \\
+\texttt{identity} & yes & $+0.087$ & 0.291 & $+0.01$ & 0.496 \\
+\texttt{mono3} & yes & $+0.081$ & 0.235 & $+1.58$ & 0.204 \\
+\texttt{sinh\_b1} & yes & $+0.081$ & 0.220 & $-0.19$ & 0.587 \\
+\texttt{cos\_w4} & no & $-0.014$ & 0.515 & $+1.39$ & 0.227 \\
+\texttt{mono5} & yes & $-0.048$ & 0.618 & $+2.91$ & 0.160 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -44,6 +44,12 @@ $\bar n$ has essentially no correlation with the size of the gain
 optimum} ($r=+0.78$). The two come apart cleanly on \texttt{shiftsq\_c3},
 which is bijective in practice and still gains $+2.36$, and on \texttt{sum},
 which destroys information and gains nothing.
+
+\item \textbf{None of the magnitudes survive the move to two objectives.}
+Run as one of two objectives under hypervolume, the same seventeen maps give
+gains uncorrelated with their single-objective ones ($r=-0.19$,
+$\rho=-0.00$), and the plateau measure stops working ($r=-0.36$). The
+bijective/non-bijective split still shows, weakly. Section~\ref{sec:mo}.
 \end{enumerate}
 
 \noindent The rest of the document gives the setup, the problems, the numbers
@@ -296,18 +302,99 @@ measures and what neither $\bar n$ nor RMSE captures.
 identical to three figures, because there $f=h$ and the two models are the
 same model.
 
+\section{The two-objective setting}
+\label{sec:mo}
+
+Everything so far minimises a single objective. The same maps were then run
+as the first of two objectives,
+\[
+f_1(x)=g_1\bigl(h_1(x)\bigr), \qquad f_2(x)=h_2(x),
+\]
+with $h_1,h_2$ independent draws from the same prior and performance measured
+by hypervolume against a reference point shared by both arms. The second
+objective is deliberately the identity, so both arms model it with the same GP
+and every difference between them has to come from $g_1$ --- the same
+isolation the single-objective design uses.
+
+Twenty-one maps, $4$ draws $\times$ $5$ designs. The map set is matched to the
+single-objective grid on purpose: of the $21$, seventeen are the same
+functions measured earlier, verified identical to machine precision rather
+than re-implemented by eye.
+
+\input{mo_table.tex}
+
+\subsection{The two settings do not agree}
+
+\input{matched_table.tex}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{../figures/so_vs_mo.pdf}
+\caption{The same seventeen maps in both settings. If the single-objective
+result predicted the multi-objective one, the points would trend upward. They
+do not.}
+\end{figure}
+
+\noindent Across the seventeen shared maps the two gains are
+\textbf{uncorrelated}: Pearson $r=-0.19$, Spearman $\rho=-0.00$; dropping
+\texttt{root5}, $-0.05$ and $+0.02$. \texttt{root5} gains $+0.42$ in regret
+and $+31\%$ in hypervolume; \texttt{shiftsq\_c2} gains $+2.78$ in regret and
+$+0.17\%$ in hypervolume. Knowing how a map behaves in one setting tells you
+almost nothing about the other.
+
+\paragraph{The plateau mechanism does not transfer, as predicted.} Plateau
+width explains the single-objective gain at $r=+0.78$ and the hypervolume gain
+at $r=-0.36$ ($-0.21$ without \texttt{root5}). This is the expected direction:
+the argument of Section~\ref{sec:plateau} is about the neighbourhood of a
+single optimum, and hypervolume has no single optimum --- the Pareto front
+spans the whole attained range of $g_1$. \texttt{shiftsq\_c3} confirms it from
+the inside: first of seventeen by single-objective gain, eighth of twenty-one
+by hypervolume gain.
+
+\paragraph{\texttt{root5} is a scale artefact, not structure.} Its $+31\%$ is
+by far the largest effect in the grid, and it comes from the objective being
+extremely heavy-tailed even after percentile normalisation: the ratio of its
+extreme value to its $99$th percentile is $256$, against $2$--$10$ for a
+typical map. One lucky extreme evaluation moves the hypervolume a long way.
+That single point is also a trap for the analysis --- tail-heaviness appears
+to explain the gains at $r=+0.94$, which collapses to $-0.02$ once
+\texttt{root5} is removed, with Spearman only $+0.15$. It explains
+\texttt{root5} and nothing else.
+
+\paragraph{What does survive.} The grouping, weakly.
+
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+ & Single objective & Multi objective \\
+\midrule
+bijective ($n=6$) & $+0.45$, \textbf{0 of 6} significant & $+1.19\%$, \textbf{0 of 6} significant \\
+not bijective ($n=11$) & $+1.80$, \textbf{10 of 11} & $+4.28\%$, \textbf{5 of 11} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Same direction in both settings, much weaker under hypervolume. So
+the proposition's qualitative prediction carries over; the quantitative
+structure behind it does not. Beyond \texttt{root5}, nothing tested here ---
+$\bar n$, plateau width, tail-heaviness, or the single-objective gain itself
+--- predicts the size of the hypervolume gain.
+
 \section{What this means}
 
 \begin{itemize}\itemsep3pt
 \item \textbf{The proposition's prediction holds.} Bijective $g$: no gain, in
 five of six cases. Non-bijective $g$: a gain every time, up to $3.4$ orders of
-magnitude.
+magnitude. The same split appears in the two-objective setting, weaker.
 \item \textbf{Its stated reason does not.} $\bar n$ is uncorrelated with the
 size of the gain, \texttt{sum} destroys information and gains nothing, and
 \texttt{shiftsq\_c3} preserves it and gains a great deal.
 \item \textbf{The operative property is flatness of $g$ at its optimum.}
 Bijectivity predicts the gain because it rules that out, not because of
-anything to do with information.
+anything to do with information. This is specific to the single-objective
+setting: the same measure is uninformative about hypervolume
+(Section~\ref{sec:mo}).
 \item \textbf{The earlier three-channel decomposition is withdrawn.} The
 split into hyperparameter estimation, model shape and information was measured
 on a grid where Composite held the true kernel; with both arms fitting, there

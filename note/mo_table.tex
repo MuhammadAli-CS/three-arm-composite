@@ -1,0 +1,35 @@
+\begin{table}[H]
+\centering
+\small
+\caption{Two-objective grid: 21 outer maps, $4$ function draws $\times$ $5$ initial designs. Gain is the per-run percentage difference in final hypervolume, paired over the shared initial design; $p$ is one-sided for a gain above zero. The second objective is the identity, so both arms model it with the same GP and every difference is attributable to $g_1$.}
+\label{tab:mo}
+\begin{tabular}{l r r r}
+\toprule
+Problem & Gain (\%) & $p$ & \\
+\midrule
+\multicolumn{4}{@{}l}{\itshape Bijective} \\
+\texttt{mono5} & $+2.91\pm12.76$ & 0.160 &  \\
+\texttt{shiftsq\_c3} & $+1.69\pm5.23$ & 0.082 &  \\
+\texttt{mono3} & $+1.58\pm8.36$ & 0.204 &  \\
+\texttt{exp\_b1} & $+1.14\pm4.54$ & 0.138 &  \\
+\texttt{identity} & $+0.01\pm3.81$ & 0.496 &  \\
+\texttt{sinh\_b1} & $-0.19\pm3.73$ & 0.587 &  \\
+\multicolumn{4}{@{}l}{\itshape Not bijective} \\
+\texttt{root5} & $+31.24\pm57.77$ & 0.013 &  \\
+\texttt{root3} & $+5.28\pm11.18$ & 0.024 &  \\
+\texttt{spr2s050} & $+4.15\pm7.17$ & 0.009 &  \\
+\texttt{shiftsq\_c0.5} & $+3.53\pm9.03$ & 0.048 &  \\
+\texttt{shiftsq\_c0} & $+2.70\pm5.64$ & 0.023 &  \\
+\texttt{cos\_w2} & $+2.01\pm3.76$ & 0.014 &  \\
+\texttt{spr3s050} & $+1.59\pm6.40$ & 0.141 &  \\
+\texttt{cos\_w4} & $+1.39\pm8.13$ & 0.227 & deferred \\
+\texttt{root2} & $+1.26\pm7.51$ & 0.231 &  \\
+\texttt{shiftsq\_c1} & $+1.16\pm3.70$ & 0.088 &  \\
+\texttt{root4} & $+0.69\pm5.99$ & 0.307 &  \\
+\texttt{spr4s050} & $+0.52\pm5.23$ & 0.332 &  \\
+\texttt{shiftsq\_c2} & $+0.17\pm6.25$ & 0.451 &  \\
+\texttt{spr6s100} & $+0.14\pm5.41$ & 0.454 &  \\
+\texttt{cos\_w1} & $-2.39\pm4.50$ & 0.986 &  \\
+\bottomrule
+\end{tabular}
+\end{table}

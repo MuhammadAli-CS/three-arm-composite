@@ -23,6 +23,8 @@ from pptx.util import Emu, Inches, Pt
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from three_arm.tables import (EXCLUDED, classify, load,            # noqa: E402
                               paired_t, plateau_width)
+from three_arm.mo_tables import BIJECTIVE as MO_BIJ                # noqa: E402
+from three_arm.mo_tables import load_mo                            # noqa: E402
 
 NAVY = RGBColor(0x1F, 0x38, 0x57)
 BLUE = RGBColor(0x2B, 0x6C, 0xB0)
@@ -90,7 +92,7 @@ def table(s, rows, left, top, width, height, size=13, head=True,
     return t
 
 
-def build(results_dir, fig_path, out_path):
+def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
     data = load(results_dir)
     stats = {}
     for m, acc in data.items():
@@ -125,7 +127,7 @@ def build(results_dir, fig_path, out_path):
         "kernel, so both surrogates are correctly specified about h.")
 
     # 2 -------------------------------------------------------------- headline
-    s = slide(prs, "Three findings",
+    s = slide(prs, "Four findings",
               "in order of how much they change the picture")
     bullets(s, [
         "**1.  The bijective-case advantage was an artefact of the setup.**",
@@ -138,7 +140,11 @@ def build(results_dir, fig_path, out_path):
         "**3.  But information is not the mechanism.**",
         "   n̄ is uncorrelated with the size of the gain (r = −0.12). "
         "Flatness of g at its own optimum predicts it (r = +0.78).",
-    ], top=1.6, gap=0.62)
+        "**4.  And none of the magnitudes survive two objectives.**",
+        "   The same 17 maps under hypervolume give gains uncorrelated with "
+        "their single-objective ones (r = −0.19), and the plateau measure "
+        "stops working (r = −0.36). The bijective split still shows, weakly.",
+    ], top=1.35, gap=0.56, size=17)
 
     # 3 ---------------------------------------------------------------- setup
     s = slide(prs, "The setup", "f(x) = g(h(x)),   x ∈ [0,1]⁶")
@@ -321,16 +327,86 @@ def build(results_dir, fig_path, out_path):
         "What matters is resolution at the optimum.",
     ], top=5.3, gap=0.52, size=16)
 
-    # 12 ------------------------------------------------------------- conclusion
+    # 12 -------------------------------------------------- multi-objective setup
+    mo = load_mo(mo_dir) if mo_dir and os.path.isdir(mo_dir) else {}
+    if mo:
+        s = slide(prs, "The same maps, as one of two objectives",
+                  "f₁ = g₁(h₁),  f₂ = h₂  — measured by hypervolume")
+        bullets(s, [
+            "Objective 2 is the identity, so both arms model it with the same GP "
+            "and every difference has to come from g₁ — the same isolation the "
+            "single-objective design uses.",
+            "21 maps × 4 draws × 5 designs. 17 of the 21 are the SAME functions "
+            "measured single-objective, verified identical to machine precision.",
+            "**So the two settings can be compared map by map.**",
+        ], top=1.9, gap=0.85, size=18)
+
+        rows = [["Problem", "Bijective?", "HV gain %", "p"]]
+        ordered = sorted(mo, key=lambda m: -st.mean(mo[m]))
+        for m in ordered[:10]:
+            mean, sd, p = paired_t(mo[m])
+            rows.append([m, "yes" if m in MO_BIJ else "no",
+                         f"{mean:+.2f}", pf(p)])
+        s2 = slide(prs, "Two-objective results", "top 10 of 21 by gain")
+        table(s2, rows, Inches(1.8), Inches(1.9), Inches(9.7), Inches(4.2),
+              size=14, align_right={2, 3})
+
+        # the matched comparison
+        s3 = slide(prs, "The two settings do not agree",
+                   "the 17 maps measured in both")
+        if os.path.exists(scatter_path):
+            from PIL import Image
+            iw, ih = Image.open(scatter_path).size
+            scale = min(Inches(8.2) / iw, Inches(5.0) / ih)
+            s3.shapes.add_picture(scatter_path, Inches(0.5), Inches(1.6),
+                                  width=int(iw * scale), height=int(ih * scale))
+        bullets(s3, [
+            "**Pearson r = −0.19, Spearman ρ = −0.00**",
+            "   (without root5: −0.05, +0.02)",
+            "root5:  +0.42 regret, **+31% HV**",
+            "shiftsq_c2:  +2.78 regret, **+0.17% HV**",
+            "",
+            "**The plateau measure does not",
+            "transfer:** r = +0.78 single-objective,",
+            "**r = −0.36** against hypervolume.",
+            "",
+            "shiftsq_c3: 1st of 17 by regret,",
+            "8th of 21 by hypervolume.",
+        ], top=1.7, gap=0.44, size=14, left=9.0, width=4.0)
+
+        s4 = slide(prs, "What survives, and one trap")
+        rows = [["", "Single objective", "Multi objective"],
+                ["bijective (n=6)", "+0.45,  0 of 6 significant",
+                 "+1.19%,  0 of 6 significant"],
+                ["not bijective (n=11)", "+1.80,  10 of 11", "+4.28%,  5 of 11"]]
+        table(s4, rows, Inches(1.2), Inches(1.8), Inches(10.9), Inches(1.5),
+              size=15)
+        bullets(s4, [
+            "**The grouping carries over — same direction, much weaker.** "
+            "The qualitative prediction survives; the quantitative structure "
+            "behind it does not.",
+            "**root5's +31% is a scale artefact.** Its objective stays extremely "
+            "heavy-tailed after percentile normalisation (ratio 256 against a "
+            "typical 2–10), so one lucky evaluation moves the hypervolume.",
+            "**And it nearly fooled the analysis:** tail-heaviness appears to "
+            "explain the gains at r = +0.94 — which collapses to −0.02 once that "
+            "single point is removed.",
+        ], top=3.7, gap=0.92, size=16)
+
+    # 13 ------------------------------------------------------------- conclusion
     s = slide(prs, "What this means")
     bullets(s, [
         "**The proposition's prediction holds.** Bijective g: no gain, in 5 of 6 "
-        "cases. Non-bijective g: a gain every time, up to 3.4 orders of magnitude.",
+        "cases. Non-bijective g: a gain every time. The same split appears with "
+        "two objectives, weaker.",
         "**Its stated reason does not.** n̄ is uncorrelated with the gain, "
         "sum destroys information and gains nothing, shiftsq_c3 preserves it and "
         "gains a great deal.",
-        "**The operative property is flatness of g at its optimum.** Bijectivity "
-        "predicts the gain because it rules that out.",
+        "**The operative property is flatness of g at its optimum** — in the "
+        "single-objective setting. Bijectivity predicts the gain because it "
+        "rules that out.",
+        "**None of the magnitudes survive two objectives:** gains uncorrelated "
+        "with the single-objective ones, and the plateau measure stops working.",
         "**The earlier three-channel decomposition is withdrawn** — it was "
         "measured on a grid where Composite held the true kernel.",
         "**Still open:** cos_w4 — most preimages of any map, has a plateau, "
@@ -346,10 +422,14 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", default="three_arm/results_matern2")
     ap.add_argument("--figure", default="figures/bo_curves_matern.png")
+    ap.add_argument("--mo", default=os.path.join(
+        "..", "MOBO-HighDim", "composite_ablation", "results", "two_stage_matched"))
+    ap.add_argument("--scatter", default="figures/so_vs_mo.png")
     ap.add_argument("--out", default="slides/composite_matern.pptx")
     a = ap.parse_args()
     torch.set_default_dtype(torch.double)
-    path, n = build(a.results, a.figure, a.out)
+    path, n = build(a.results, a.figure, a.out,
+                    mo_dir=a.mo, scatter_path=a.scatter)
     print(f"wrote {path} ({n} slides)")
 
 
