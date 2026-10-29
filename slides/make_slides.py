@@ -92,7 +92,8 @@ def table(s, rows, left, top, width, height, size=13, head=True,
     return t
 
 
-def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
+def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path="",
+          hv_path=""):
     data = load(results_dir)
     stats = {}
     for m, acc in data.items():
@@ -356,6 +357,23 @@ def build(results_dir, fig_path, out_path, mo_dir=None, scatter_path=""):
         table(s2, rows, Inches(1.8), Inches(1.9), Inches(9.7), Inches(4.2),
               size=14, align_right={2, 3})
 
+        # convergence under hypervolume, the direct counterpart of slide 7
+        sh = slide(prs, "Convergence under hypervolume",
+                   "median with interquartile band, each run relative to its "
+                   "own initial design; bijective left of the rule")
+        if os.path.exists(hv_path):
+            from PIL import Image
+            iw, ih = Image.open(hv_path).size
+            scale = min(Inches(12.6) / iw, Inches(5.1) / ih)
+            w, h = int(iw * scale), int(ih * scale)
+            sh.shapes.add_picture(hv_path, int((W - w) / 2), Inches(1.5),
+                                  width=w, height=h)
+        tf, r = _text(sh, Inches(0.7), Inches(6.75), Inches(12.0),
+                      Inches(0.6), size=16, bold=True, color=BLUE)
+        r.text = ("Compare slide 7: there the non-bijective block separates "
+                  "within ten evaluations. Here almost nothing separates "
+                  "anywhere — root5 is the one visible exception.")
+
         # the matched comparison
         s3 = slide(prs, "The two settings do not agree",
                    "the 17 maps measured in both")
@@ -431,11 +449,12 @@ def main():
     ap.add_argument("--mo", default=os.path.join(
         "..", "MOBO-HighDim", "composite_ablation", "results", "two_stage_matched"))
     ap.add_argument("--scatter", default="figures/so_vs_mo.png")
+    ap.add_argument("--hv", default="figures/hv_curves.png")
     ap.add_argument("--out", default="slides/composite_matern.pptx")
     a = ap.parse_args()
     torch.set_default_dtype(torch.double)
     path, n = build(a.results, a.figure, a.out,
-                    mo_dir=a.mo, scatter_path=a.scatter)
+                    mo_dir=a.mo, scatter_path=a.scatter, hv_path=a.hv)
     print(f"wrote {path} ({n} slides)")
 
 

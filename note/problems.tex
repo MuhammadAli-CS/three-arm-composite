@@ -206,6 +206,7 @@ curves lie on top of each other, on the right Composite separates within the
 first ten evaluations. These are the sixteen maps of
 Tables~\ref{tab:bij}--\ref{tab:nonbij}; the excluded maps
 (Table~\ref{tab:excluded}) and the $k>1$ control are not shown.}
+\label{fig:curves}
 \end{figure}
 
 \subsection{The linear control}
@@ -349,6 +350,23 @@ functions measured earlier, verified identical to machine precision rather
 than re-implemented by eye.
 
 \input{mo_table.tex}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{../figures/hv_curves.pdf}
+\caption{Hypervolume against evaluation, same layout as
+Figure~\ref{fig:curves}: bijective maps left of the rule, non-bijective
+right, median with the interquartile band. Each run is divided by its own
+hypervolume at the end of the initial design --- raw hypervolume runs from
+$15$ to $129$ across the four function draws, and both arms share the
+initial design within a run, so dividing by it removes that scale without
+favouring either arm. Each panel prints its gain, starred where
+$p<0.05$. Set against Figure~\ref{fig:curves} the contrast is the result of
+this section: there the non-bijective block separates within ten
+evaluations, here almost nothing separates anywhere. \texttt{root5} is the
+visible exception, and Section~\ref{sec:mo} argues it is a scale artefact.}
+\label{fig:hv}
+\end{figure}
 
 \subsection{The two settings do not agree}
 
