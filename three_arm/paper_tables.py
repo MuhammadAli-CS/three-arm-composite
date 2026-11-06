@@ -186,6 +186,5 @@ A(r"\bottomrule")
 A(r"\end{tabular}")
 A(r"\end{table}")
 
-open(os.path.join("note", "appendix_c_tables.tex"), "w",
-     encoding="utf-8").write("\n".join(out) + "\n")
-print("\n".join(out))
+io.open(OUT, "w", encoding="utf-8", newline="\n").write("\n".join(out) + "\n")
+print("wrote " + OUT)
